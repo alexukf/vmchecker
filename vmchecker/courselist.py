@@ -4,8 +4,7 @@
 
 from __future__ import with_statement
 
-
-DEFAULT_CONFIG_FILE_LIST = '/etc/vmchecker/config.list'
+DEFAULT_CONFIG_FILE_LIST = '/vagrant/etc/vmchecker/config.list'
 
 class CourseList():
     """A class to interact with the course list"""

@@ -3,10 +3,11 @@
 
 """
 This script implements the VMChecker's Web Services.
-It's based on apache2 and mod_python.
+It's based on the Flask web services microframework
 """
 
 from __future__ import with_statement
+from flask import Flask, g
 
 # Use simplejson or Python 2.6 json, prefer simplejson.
 try:
@@ -23,8 +24,6 @@ import tempfile
 import traceback
 import subprocess
 
-from mod_python import Session
-
 from vmchecker.courselist import CourseList
 from vmchecker.config import CourseConfig
 from vmchecker import submit, config, websutil, update_db, paths, submissions
@@ -35,12 +34,21 @@ MAX_VMR_FILE_SIZE = 500 * 1024 # 500 KB
 
 # define ERROR_MESSAGES
 ERR_AUTH = 1
-ERR_EXCEPTION = 2 
+ERR_EXCEPTION = 2
 ERR_OTHER = 3
 
+app = Flask(__name__, instance_relative_config = True, instance_path='.')
+
+app.config.update(
+    DEBUG      = True,
+    SECRET_KEY = '12345678'
+    )
+
+app.config.from_pyfile('vmchecker_ws.cfg', silent = True)
 
 
-########## @ServiceMethod
+
+@app.route("/submit", methods = ['POST'])
 def uploadedFile(req, courseId, assignmentId, tmpname):
     """ Saves a temp file of the uploaded archive and calls
         vmchecker.submit.submit method to put the homework in
@@ -63,8 +71,8 @@ def uploadedFile(req, courseId, assignmentId, tmpname):
         traceback.print_exc(file = strout)
         return json.dumps({'errorType':ERR_EXCEPTION,
             'errorMessage':"",
-            'errorTrace':strout.get()})     
-    
+            'errorTrace':strout.get()})
+
     # Reset the timeout
     s.save()
 
@@ -85,7 +93,7 @@ def uploadedFile(req, courseId, assignmentId, tmpname):
         return json.dumps({'errorType':ERR_EXCEPTION,
             'errorMessage':"",
             'errorTrace':strout.get()})
-    
+
     return json.dumps({'status':True,
                        'dumpLog':strout.get()})
 
@@ -94,7 +102,7 @@ def uploadAssignment(req, courseId, assignmentId, archiveFile):
     """ Saves a temp file of the uploaded archive and calls
         vmchecker.submit.submit method to put the homework in
         the testing queue"""
-	
+
     # Check permission
     req.content_type = 'text/html'
     s = Session.Session(req)
@@ -112,8 +120,8 @@ def uploadAssignment(req, courseId, assignmentId, archiveFile):
         traceback.print_exc(file = strout)
         return json.dumps({'errorType':ERR_EXCEPTION,
             'errorMessage':"",
-            'errorTrace':strout.get()})  	
-	
+            'errorTrace':strout.get()})
+
     # Reset the timeout
     s.save()
 
@@ -148,10 +156,10 @@ def uploadAssignment(req, courseId, assignmentId, archiveFile):
         return json.dumps({'errorType':ERR_EXCEPTION,
             'errorMessage':"",
             'errorTrace':strout.get()})
-	
+
     return json.dumps({'status':True,
                        'dumpLog':strout.get(),
-                       'file': tmpname}) 
+                       'file': tmpname})
 
 ########## @ServiceMethod
 def uploadAssignmentMd5(req, courseId, assignmentId, md5Sum):
@@ -370,7 +378,7 @@ def getCourses(req):
         return json.dumps({'errorType':ERR_AUTH,
                 'errorMessage':"",
                 'errorTrace':""})
-		
+
     # Reset the timeout
     s.save()
 
@@ -388,13 +396,13 @@ def getCourses(req):
         traceback.print_exc(file = strout)
         return json.dumps({'errorType':ERR_EXCEPTION,
              'errorMessage':"",
-             'errorTrace':strout.get()})  	
-				
+             'errorTrace':strout.get()})
+
     return json.dumps(course_arr)
 
 
 ######### @ServiceMethod
-def getAssignments(req, courseId): 
+def getAssignments(req, courseId):
     """ Returns the list of assignments for a given course """
 
     req.content_type = 'text/html'
@@ -622,11 +630,11 @@ def login(req, username, password):
         traceback.print_exc(file = strout)
         return json.dumps({'errorType':ERR_EXCEPTION,
             'errorMessage':"",
-            'errorTrace':strout.get()})  	
+            'errorTrace':strout.get()})
 
     if user is None:
         s.invalidate()
-        return json.dumps({'status':False, 'username':"", 
+        return json.dumps({'status':False, 'username':"",
             'info':'Invalid username/password'})
 
     s["username"] = username.lower()
@@ -643,3 +651,5 @@ def logout(req):
     return json.dumps({'info':'You logged out'})
 
 
+if __name__ == '__main__':
+    app.run()
