@@ -1,12 +1,12 @@
 # -*- mode: ruby -*-
 # vim: set ft=ruby :
 
-$apt_repositories = <<SCRIPT
+$packages = <<SCRIPT
 apt-get update
-apt-get install python-flask
-apt-get install python-sqlalchemy
-apt-get install python-voluptuous
-apt-get install python-magic
+apt-get install -y python-flask
+apt-get install -y python-sqlalchemy
+apt-get install -y python-voluptuous
+apt-get install -y python-magic
 SCRIPT
 
 VAGRANTFILE_API_VERSION = "2"
@@ -28,4 +28,6 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
       # Use VBoxManage to customize the VM. For example to change memory:
       # vb.customize ["modifyvm", :id, "--memory", "1024"]
   end
+
+  config.vm.provision "shell", inline: $packages
 end
