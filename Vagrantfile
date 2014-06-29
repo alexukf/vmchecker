@@ -1,6 +1,14 @@
 # -*- mode: ruby -*-
 # vim: set ft=ruby :
 
+$apt_repositories = <<SCRIPT
+apt-get update
+apt-get install python-flask
+apt-get install python-sqlalchemy
+apt-get install python-voluptuous
+apt-get install python-magic
+SCRIPT
+
 VAGRANTFILE_API_VERSION = "2"
 
 unless Vagrant.has_plugin?("vagrant-omnibus")
