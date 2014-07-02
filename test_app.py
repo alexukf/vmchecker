@@ -70,5 +70,13 @@ if __name__ == "__main__":
         "upload_active_to" : "2014-04-02",
         "course_id" : 1
         })
+    post(conn, "/assignments/", {
+        "name" : "Tema 2",
+        "deadline" : "2014-03-02",
+        "statement_url" : "http://localhost",
+        "upload_active_from" : "2014-01-01",
+        "upload_active_to" : "2014-04-02",
+        "course_id" : 1
+        })
     get(conn, "/assignments/")
     get(conn, "/courses/")

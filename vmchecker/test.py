@@ -21,7 +21,7 @@ register_blueprint(app)
 Session.configure(bind = create_sqlite_db())
 
 if __name__ == '__main__':
-    user = User(username = "Adila")
+    user = User(id = 7, username = "Adila")
     session = Session()
     session.add(user)
     session.commit()
