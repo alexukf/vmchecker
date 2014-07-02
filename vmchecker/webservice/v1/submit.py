@@ -32,7 +32,6 @@ def MimeType(mimetypes = []):
 
     return validate
 
-
 class SubmitAPI(API):
     endpoint = "submit_api"
     prefix = "/submits"
@@ -54,7 +53,6 @@ class SubmitAPI(API):
         return make_json_response({ "collection" : result }, 200)
 
     def post(self):
-        # TODO secure this against many uploads in a short time
         schema = Schema({
             Required('user_id') : All(Coerce(int), Range(min = 0)),
             Required('assignment_id') : All(Coerce(int), Range(min = 0))
@@ -68,6 +66,10 @@ class SubmitAPI(API):
         try:
             # validate request form data
             data = schema(request.form.to_dict(flat = True))
+            #result = self.session.query(Submit) \
+            #        .filter_by(user_id = data['user_id']) \
+            #        .order_by(.all()
+
             files = file_schema(request.files.to_dict(flat = True))
             new_submit = Submit(**data)
             new_submit.filename = files['file'].tmpname
@@ -84,8 +86,12 @@ class SubmitAPI(API):
 
         self.session.commit()
 
-        return make_json_response({ "message" : "submit %d added" % new_submit.id },
-                200)
+        return make_json_response({
+            "message" : "submit %d added" % new_submit.id,
+            "grade" : 95,
+            "comments" : "<p>-5p inconsistent indenting</p>"
+            },
+            200)
 
     def delete(self, submit_id):
         # TODO we don't support submit deletion
