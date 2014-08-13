@@ -1,5 +1,5 @@
 #!/usr/bin/env python2
-# -*- coding: utf8 -*-
+# -*- coding: UTF-8 -*-
 
 import os
 from vmchecker.webservice import application
