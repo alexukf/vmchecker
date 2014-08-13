@@ -7,7 +7,6 @@ It's based on the Flask web services microframework
 """
 
 from __future__ import with_statement
-from flask import Flask, g
 
 # Use simplejson or Python 2.6 json, prefer simplejson.
 try:
