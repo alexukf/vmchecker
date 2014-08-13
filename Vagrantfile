@@ -3,10 +3,23 @@
 
 $packages = <<SCRIPT
 apt-get update
-apt-get install -y python-flask
-apt-get install -y python-sqlalchemy
-apt-get install -y python-voluptuous
-apt-get install -y python-magic
+
+apt-get install -y zsh
+chsh -s /bin/zsh {,vagrant}
+
+apt-get install -y python-pip
+apt-get install -y python-paramiko python-ldap python-magic
+
+apt-get install -y python-dev libffi-dev libgit2-dev
+pip install flask
+pip install sqlalchemy
+pip install voluptuous
+pip install cffi
+pip install pygit2==0.19.0
+
+apt-get install -y git
+apt-get install -y acl
+apt-get install -y apache2 libapache2-mod-python
 SCRIPT
 
 VAGRANTFILE_API_VERSION = "2"
@@ -23,6 +36,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   config.vm.box_url = VAGRANTFILE_BOX_URL
 
   config.vm.network :forwarded_port, host: 5000, guest: 5000
+  config.vm.network :forwarded_port, host: 8080, guest: 80
 
   config.vm.provider "virtualbox" do |vb|
       # Use VBoxManage to customize the VM. For example to change memory:
