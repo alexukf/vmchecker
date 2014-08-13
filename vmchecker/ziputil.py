@@ -13,7 +13,7 @@ import os
 # instead on changing & bloating this code I'll just copy and use the
 # zipfile from upstream import zipfile
 
-from . import zipfile
+import zipfile
 
 
 def unzip_safely(archive_filename, destination):
