@@ -19,6 +19,7 @@ import socket
 import random
 import datetime
 import paramiko
+import tempfile
 from contextlib import closing
 
 from . import config
@@ -26,8 +27,8 @@ from . import paths
 from . import ziputil
 from . import submissions
 from . import vmlogging
-from . import tempfileutil
 from .courselist import CourseList
+from .dirlocking import DirLock
 
 logger = vmlogging.create_module_logger('submit')
 
@@ -88,7 +89,7 @@ def submission_backup_prefix(course_id, assignment, user, upload_time):
     return '%s_%s_%s_%s_' % (course_id, assignment, user, upload_time)
 
 
-def submission_backup(back_dir, submission_filename, sbcfg):
+def submission_backup(back_dir, new_submit):
     """Make a backup for this submission.
 
     Each normal submission entry is of the following structure:
@@ -122,18 +123,18 @@ def submission_backup(back_dir, submission_filename, sbcfg):
 
     # write the config. Do this before unzipping (which might fail)
     # to make sure we have the dates correctly stored.
-    with open(back_cfg, 'w') as handle:
-        sbcfg.write(handle)
+    #with open(back_cfg, 'w') as handle:
+    #    sbcfg.write(handle)
 
-    if sbcfg.get('Assignment', 'Storage').lower() == "large":
-        shutil.copyfile(submission_filename, back_md5)
+    if new_submit.assignment.storage_type.lower() == "large":
+        shutil.copyfile(new_submit.filename, back_md5)
     else:
         # copy the (unmodified) archive. This should be the first thing we
         # do, to make sure the uploaded submission is on the server no
         # matter what happens next
-        shutil.copyfile(submission_filename, back_zip)
+        shutil.copyfile(new_submit.filename, back_zip)
         # unzip the archive, but check if it has absolute paths or '..'
-        ziputil.unzip_safely(submission_filename, back_arc)
+        ziputil.unzip_safely(new_submit.filename, back_arc)
 
     logger.info('Stored submission in temporary directory %s', back_dir)
 
@@ -151,8 +152,7 @@ def submission_git_commit(dest, user, assignment):
 
 
 
-def save_submission_in_storer(submission_filename, user, assignment,
-                              course_id, upload_time):
+def save_submission_in_storer(new_submit)
     """ Save the submission on the storer machine:
 
         - create a config for the submission to hold identifying info
@@ -162,24 +162,22 @@ def save_submission_in_storer(submission_filename, user, assignment,
         - copy the archive near the data committed in the repo to be
           easily accessible.
     """
-    vmcfg = config.CourseConfig(CourseList().course_config(course_id))
-    vmpaths = paths.VmcheckerPaths(vmcfg.root_path())
+    assignment = new_submit.assignment
+    user = new_submit.user
+    course = assignment.course
+    vmpaths = paths.VmcheckerPaths(course.root_path)
 
-    dir_name = 'sb_' + str(upload_time) + '_rnd' + str(random.randint(0, 1000))
+    dir_name = 'sb_' + str(new_submit.upload_time) + '_rnd' \
+        + str(random.randint(0, 1000))
     # make name more pleasant to use for commandline
     dir_name = dir_name.replace(' ', '__').replace(':', '.')
 
-    cur_sb = vmpaths.dir_cur_submission_root(assignment, user)
-    new_sb = vmpaths.dir_new_submission_root(assignment, user, dir_name)
+    cur_sb = vmpaths.dir_cur_submission_root(assignment.name, user.name)
+    new_sb = vmpaths.dir_new_submission_root(assignment.name, user.name, dir_name)
 
-    sbcfg = submission_config(user, assignment, course_id, upload_time,
-                              paths.dir_submission_results(new_sb),
-                              vmcfg.storer_username(),
-                              vmcfg.storer_hostname())
-
-    with vmcfg.assignments().lock(vmpaths, assignment):
+    with DirLock(vmpaths.dir_submission_root(assignment.name, user.name)):
         # write data to the backup
-        submission_backup(new_sb, submission_filename, sbcfg)
+        submission_backup(new_sb, new_submit)
 
         # commit in git only part of the files (not the 'archive.zip')
         #git_dest = paths.dir_submission_git(new_sb)
@@ -194,7 +192,7 @@ def save_submission_in_storer(submission_filename, user, assignment,
 
 
 
-def create_testing_bundle(user, assignment, course_id):
+def create_testing_bundle(new_submit):
     """Creates a testing bundle.
 
     This function creates a zip archive (the bundle) with everything
@@ -208,33 +206,34 @@ def create_testing_bundle(user, assignment, course_id):
         ???         - assignment's extra files (see Assignments.include())
 
     """
-    vmcfg = config.CourseConfig(CourseList().course_config(course_id))
-    vmpaths = paths.VmcheckerPaths(vmcfg.root_path())
-    sbroot = vmpaths.dir_cur_submission_root(assignment, user)
+    assignment = new_submit.assignment
+    user = new_submit.user
+    course = assignment.course
+    vmpaths = paths.VmcheckerPaths(course.root_path)
+    sbroot = vmpaths.dir_cur_submission_root(assignment.name, user.name)
 
-    asscfg  = vmcfg.assignments()
-    machine = asscfg.get(assignment, 'Machine')
+    machine = assignment.machine
 
-    rel_file_list = [ ('run.sh',   vmcfg.get(machine, 'RunScript',   '')),
-                      ('build.sh', vmcfg.get(machine, 'BuildScript', '')),
-                      ('tests.zip', vmcfg.assignments().tests_path(vmpaths, assignment)),
-                      ('course-config', vmpaths.config_file()),
-                      ('submission-config', paths.submission_config_file(sbroot)) ]
+    rel_file_list = [('run.sh',   machine.guest_run_script),
+                     ('build.sh', machine.guest_build_script),
+                     ('tests.zip', os.path.join(vmpaths.dir_tests(), \
+                                   assignment.name + 'zip')),
+                     ('course-config', vmpaths.config_file()),
+                     ('submission-config', paths.submission_config_file(sbroot))]
 
     # Get the assignment submission type (zip archive vs. MD5 Sum).
     # Large assignments do not have any archive.zip configured.
-    if asscfg.getd(assignment, "AssignmentStorage", "").lower() != "large":
-        rel_file_list += [ ('archive.zip', paths.submission_archive_file(sbroot)) ]
+    if assignment.storage_type.lower() != "large":
+        rel_file_list += [('archive.zip', paths.submission_archive_file(sbroot))]
 
-
-    file_list = [ (dst, vmpaths.abspath(src)) for (dst, src) in rel_file_list if src != '' ]
+    file_list = [(dst, vmpaths.abspath(src)) for (dst, src) in rel_file_list if src != '' ]
 
     # builds archive with configuration
-    with vmcfg.assignments().lock(vmpaths, assignment):
+    with DirLock(vmpaths.dir_submission_root(assignment.name, user.name)):
         # creates the zip archive with an unique name
-        (bundle_fd, bundle_path) = tempfileutil.mkstemp(
+        (bundle_fd, bundle_path) = tempfile.mkstemp(
             suffix='.zip',
-            prefix='%s_%s_%s_' % (course_id, assignment, user),
+            prefix='%s_%s_%s_' % (course.name, assignment.name, user.name),
             dir=vmpaths.dir_storer_tmp())
         logger.info('Creating bundle package %s', bundle_path)
 
@@ -249,15 +248,14 @@ def create_testing_bundle(user, assignment, course_id):
     return bundle_path
 
 
-def ssh_bundle(bundle_path, vmcfg, assignment):
+def ssh_bundle(bundle_path, new_submit):
     """Sends a bundle over ssh to the tester machine"""
-    machine = vmcfg.assignments().get(assignment, 'Machine')
-    tester = vmcfg.get(machine, 'Tester')
+    machine = new_submit.assignment.machine
+    tester = machine.tester
 
-    tstcfg = vmcfg.testers()
-    tester_username  = tstcfg.login_username(tester)
-    tester_hostname  = tstcfg.hostname(tester)
-    tester_queuepath = tstcfg.queue_path(tester)
+    tester_username  = tester.login_username
+    tester_hostname  = tester.hostname
+    tester_queuepath = tester.queue_path
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.connect((tester_hostname, _DEFAULT_SSH_PORT))
     t = paramiko.Transport(sock)
@@ -267,7 +265,7 @@ def ssh_bundle(bundle_path, vmcfg, assignment):
         # have $home/.ssh/known_hosts where to store such info. For
         # now, we'll assume the remote host is the desired one.
         #remotekey = t.get_remote_server_key()
-        key = paramiko.RSAKey.from_private_key_file(vmcfg.storer_sshid())
+        key = paramiko.RSAKey.from_private_key_file(assignment.storer.sshid)
         # todo check DSA keys too
         # key = paramiko.DSAKey.from_private_key_file(vmcfg.storer_sshid())
         t.auth_publickey(tester_username, key)
@@ -308,11 +306,10 @@ def submitted_too_soon(assignment, user, vmcfg, check_eval_queueing_time):
 
 
 
-def queue_for_testing(assignment, user, course_id):
+def queue_for_testing(new_submit):
     """Queue for testing the last submittion for the given assignment,
     course and user."""
-    vmcfg = config.CourseConfig(CourseList().course_config(course_id))
-    bundle_path = create_testing_bundle(user, assignment, course_id)
+    bundle_path = create_testing_bundle(new_submit)
     try:
         ssh_bundle(bundle_path, vmcfg, assignment)
     except Exception as e:
@@ -360,36 +357,18 @@ def check_valid_time(course_id, assignment, user,
                                     min_time_between_subm)
 
 
-def submit(submission_filename, assignment, user, course_id,
-           skip_toosoon_check=False, forced_upload_time=None):
+def submit(new_submit):
     """Main routine: save a new submission and queue it for testing.
 
     The submission is identified by submission_filename.
 
-    Implicitly, if the user sent the submission to soon, it isn't
-    queued for checking. This check can be skipped by setting
-    skip_toosoon_check=True.
-
-    If forced_upload_time is not specified, the current system time is
-    used.
-
     Checks whether submissions are active for this course.
     """
-    vmcfg = config.CourseConfig(CourseList().course_config(course_id))
+    save_submission_in_storer(new_submit)
 
-    if forced_upload_time != None:
-        skip_toosoon_check = True
-        upload_time_str = forced_upload_time
-    else:
-        upload_time_str = time.strftime(config.DATE_FORMAT)
-
-    check_valid_time(course_id, assignment, user,
-                     upload_time_str, skip_toosoon_check, False)
-    save_submission_in_storer(submission_filename, user, assignment,
-                              course_id, upload_time_str)
-    storage_type = vmcfg.assignments().getd(assignment, "AssignmentStorage", "")
+    storage_type = submit.assignment.storage_type
     if storage_type.lower() != "large":
-        queue_for_testing(assignment, user, course_id)
+        queue_for_testing(new_submit)
 
 
 def evaluate_large_submission(archive_fname, assignment, user, course_id):
