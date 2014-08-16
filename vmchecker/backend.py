@@ -49,7 +49,7 @@ class SQLiteDb(Database):
                                         poolclass=StaticPool)
         self.engine.execute('pragma foreign_keys=on')
 
-        session_factory = sessionmaker(bind=self.engine)
+        session_factory = sessionmaker(bind=self.engine, expire_on_commit=False)
         self.Session = scoped_session(session_factory)
 
     def initialize_db(self):
