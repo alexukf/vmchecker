@@ -1,4 +1,7 @@
+# -*- coding: utf-8 -*-
+
 import ldap
+import bcrypt
 from functools import wraps
 from flask import g
 from werkzeug.exceptions import Unauthorized, Forbidden

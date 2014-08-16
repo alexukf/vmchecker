@@ -1,4 +1,4 @@
-# -*- coding: UTF-8 -*-
+# -*- coding: utf-8 -*-
 
 from .mixins import ApiResource
 from flask.json import JSONEncoder

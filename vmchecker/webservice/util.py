@@ -1,13 +1,10 @@
+# -*- coding: utf-8 -*-
+
 import os
 import tempfile
 import magic
 from flask import g, jsonify
 from datetime import datetime
-
-def teardown_session(exception):
-    session = getattr(g, '_session', None)
-    if session is not None:
-        session.close()
 
 def make_json_response(message, status_code, headers=None):
     response = jsonify(message)

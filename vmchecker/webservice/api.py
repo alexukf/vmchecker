@@ -1,10 +1,13 @@
+# -*- coding: utf-8 -*-
+
+import simplejson as json
 from .. import backend
 from flask.views import MethodView
-from flask.wrappers import Request
-from werkzeug.exceptions import BadRequest
+from flask.wrappers import Request, Response
+from werkzeug.exceptions import HTTPException
 
 class ApiMeta(type):
-    """ Metaclass used as to create an API registry"""
+    """ Metaclass used to create an API registry"""
 
     def __init__(cls, name, bases, dct):
         if not hasattr(cls, "registry"):
@@ -59,3 +62,18 @@ class Api(MethodView):
 class ApiRequest(Request):
     def on_json_loading_failed(self, e):
         raise BadRequest('invalid json in request')
+
+class ApiResponse(Response):
+    default_mimetype = 'application/json'
+
+    def __init__(self, content):
+        Response.__init__(self, response=json.dumps(content))
+
+class ApiException(HTTPException):
+    app_code = None
+
+    def get_response(self, environ=None):
+        return ApiResponse({
+            'description': self.description,
+            'errorCode': self.app_code
+            })

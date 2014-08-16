@@ -1,13 +1,15 @@
+# -*- coding: utf-8 -*-
+
 from ..backend import session_scope
 from ..database import models
 from .util import MimeType, make_json_response
-from .api import Api
-
+from .api import Api, ApiResponse
+from .exceptions import *
+from .responses import *
 from datetime import datetime
 from flask import request
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.exc import NoResultFound
-from werkzeug.exceptions import BadRequest, NotFound
 from voluptuous import All, Range, Length, MultipleInvalid, Schema, Required
 
 class Assignment(Api):
@@ -29,7 +31,7 @@ class Assignment(Api):
         if assignment_id is not None and not results:
             raise NotFound("assignment %d not found" % assignment_id)
 
-        return make_json_response({'collection': results}, 200)
+        return ApiResponse({'collection': results})
 
     def post(self):
         schema = models.Assignment.get_schema()
@@ -39,17 +41,18 @@ class Assignment(Api):
             data = schema(request.json)
             new_assignment = models.Assignment(**data)
             with session_scope(self.db) as session:
+                course_id = new_assignment.course_id
+                query = session.query(models.Course) \
+                               .filter_by(id=course_id)
+                if not query.first():
+                    raise NotFound("course %d not found" % course_id)
                 session.add(new_assignment)
-                new_assignment_id = new_assignment.id
         except IntegrityError, e:
             raise BadRequest(str(e))
         except MultipleInvalid, e:
             raise BadRequest(str(e))
 
-        return make_json_response({
-            'message': "assignment added"
-            },
-            200)
+        return Created('assignment created')
 
     def delete(self, assignment_id):
         try:
@@ -63,10 +66,7 @@ class Assignment(Api):
         except IntegrityError, e:
             raise BadRequest(str(e))
 
-        return make_json_response({
-            'message': "assignment %d deleted" % assignment_id
-            },
-            200)
+        return Deleted('assignment deleted')
 
     def put(self, assignment_id):
         self.patch(assignment_id)
@@ -88,10 +88,7 @@ class Assignment(Api):
         except MultipleInvalid, e:
             raise BadRequest(str(e))
 
-        return make_json_response({
-            'message' : "assignment %d updated" % assignment_id
-            },
-            200)
+        return Updated("assignment %d updated" % assignment_id)
 
 class Course(Api):
     endpoint = 'course_api'
@@ -112,7 +109,7 @@ class Course(Api):
         if course_id is not None and not results:
             raise NotFound("course %d not found" % course_id)
 
-        return make_json_response({'collection': results}, 200)
+        return ApiResponse({'collection': results})
 
     def post(self):
         schema = models.Course.get_schema()
@@ -129,10 +126,7 @@ class Course(Api):
         except MultipleInvalid, e:
             raise BadRequest(str(e))
 
-        return make_json_response({
-            'message' : "course added"
-            },
-            200)
+        return Created('course added')
 
     def delete(self, course_id):
         try:
@@ -146,10 +140,7 @@ class Course(Api):
         except MultipleInvalid, e:
             raise BadRequest(str(e))
 
-        return make_json_response({
-            'message': "course %d deleted" % course_id
-            },
-            200)
+        return Deleted('course %d deleted' % course_id)
 
     def put(self, course_id):
         self.patch(course_id)
@@ -168,6 +159,8 @@ class Course(Api):
             raise BadRequest(str(e))
         except MultipleInvalid, e:
             raise BadRequest(str(e))
+
+        return Updated("course updated")
 
 class Submit(Api):
     endpoint = 'submit_api'
@@ -188,7 +181,7 @@ class Submit(Api):
         if submit_id is not None and not results:
             raise NotFound("submit %d was not found" % submit_id)
 
-        return make_json_response({'collection': results}, 200)
+        return ApiResponse({'collection': results})
 
     def post(self):
         schema = models.Submit.get_schema()
@@ -239,10 +232,7 @@ class Submit(Api):
         #    submit.submit(new_submit.filename, new_submit.assignment_id,
         #            new_submit.user.username, new_submit.assignment.course_id)
 
-        return make_json_response({
-            'message' : "submit added"
-            },
-            200)
+        return Created('submit added')
 
     @classmethod
     def register_api_endpoint(cls, app):
@@ -272,7 +262,7 @@ class User(Api):
         if user_id is not None and not results:
             raise NotFound("user %d not found" % user_id)
 
-        return make_json_response({'collection': results}, 200)
+        return ApiResponse({'collection': results})
 
     def post(self):
         schema = models.User.get_schema()
@@ -288,10 +278,7 @@ class User(Api):
         except MultipleInvalid, e:
             raise BadRequest(str(e))
 
-        return make_json_response({
-            'message': "user added"
-            },
-            200)
+        return Created('User added')
 
     def delete(self, user_id):
         try:
@@ -305,10 +292,7 @@ class User(Api):
         except IntegrityError, e:
             raise BadRequest(str(e))
 
-        return make_json_response({
-            'message' : "user %d deleted" % user_id
-            },
-            200)
+        return Deleted("user deleted")
 
     def put(self, user_id):
         self.patch(user_id)
@@ -328,10 +312,7 @@ class User(Api):
         except IntegrityError, e:
             raise BadRequest(str(e))
 
-        return make_json_response({
-            'message' : "user %d updated" % user_id
-            },
-            200)
+        return Updated("user updated")
 
 apis = [Assignment, Course, Submit, User]
 __all__ = map(lambda klazz: klazz.__name__, apis)
