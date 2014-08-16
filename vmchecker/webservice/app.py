@@ -10,10 +10,6 @@ from flask import Flask, Blueprint, jsonify, request
 from endpoints import *
 
 def check_request():
-    #check_methods = ['POST', 'PUT', 'PATCH']
-    #if request.method not in check_methods:
-    #    return None
-
     mimetype = request.mimetype
     if mimetype.startswith('application/') and mimetype.endswith('json'):
         return None

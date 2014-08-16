@@ -65,15 +65,19 @@ class ApiRequest(Request):
 
 class ApiResponse(Response):
     default_mimetype = 'application/json'
+    default_error_code = 0
 
-    def __init__(self, content):
-        Response.__init__(self, response=json.dumps(content))
+    def __init__(self, content, error_code=None):
+        if error_code is None:
+            error_code = self.default_error_code
+        Response.__init__(self, response=json.dumps({
+            'result': content,
+            'errorCode': error_code
+            }))
 
 class ApiException(HTTPException):
-    app_code = None
+    error_code = None
 
     def get_response(self, environ=None):
-        return ApiResponse({
-            'description': self.description,
-            'errorCode': self.app_code
-            })
+        return ApiResponse(self.description,
+            self.error_code)

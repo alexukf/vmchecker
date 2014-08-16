@@ -7,7 +7,7 @@ from .api import Api, ApiResponse
 from .exceptions import *
 from .responses import *
 from datetime import datetime
-from flask import request
+from flask import request, url_for
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.exc import NoResultFound
 from voluptuous import All, Range, Length, MultipleInvalid, Schema, Required
@@ -35,7 +35,7 @@ class Assignment(Api):
 
     def post(self):
         schema = models.Assignment.get_schema()
-        new_assignment_id = None
+        location = url_for('.' + self.endpoint) + '%d'
 
         try:
             data = schema(request.json)
@@ -47,12 +47,13 @@ class Assignment(Api):
                 if not query.first():
                     raise NotFound("course %d not found" % course_id)
                 session.add(new_assignment)
+            location = location % new_assignment.id
         except IntegrityError, e:
             raise BadRequest(str(e))
         except MultipleInvalid, e:
             raise BadRequest(str(e))
 
-        return Created('assignment created')
+        return Created('Assignment created', location)
 
     def delete(self, assignment_id):
         try:
@@ -113,20 +114,20 @@ class Course(Api):
 
     def post(self):
         schema = models.Course.get_schema()
-        new_course_id = None
+        location = url_for('.' + self.endpoint) + '%d'
 
         try:
             data = schema(request.json)
             new_course = models.Course(**data)
             with session_scope(self.db) as session:
                 session.add(new_course)
-                new_course_id = new_course.id
+            location = location % new_course.id
         except IntegrityError, e:
             raise BadRequest(str(e))
         except MultipleInvalid, e:
             raise BadRequest(str(e))
 
-        return Created('course added')
+        return Created('Course created', location)
 
     def delete(self, course_id):
         try:
@@ -185,6 +186,7 @@ class Submit(Api):
 
     def post(self):
         schema = models.Submit.get_schema()
+        location = url_for('.' + self.endpoint) + '%d'
 
         file_schema = Schema({
             Required('file'): All(
@@ -223,16 +225,13 @@ class Submit(Api):
                 #submit(new_submit.filename, new_submit)
 
                 self.session.add(new_submit)
+            location = location % new_submit.id
         except IntegrityError, e:
             raise BadRequest(str(e))
         except MultipleInvalid, e:
             raise BadRequest(str(e))
 
-        #try:
-        #    submit.submit(new_submit.filename, new_submit.assignment_id,
-        #            new_submit.user.username, new_submit.assignment.course_id)
-
-        return Created('submit added')
+        return Created('Submit created', location)
 
     @classmethod
     def register_api_endpoint(cls, app):
@@ -266,19 +265,20 @@ class User(Api):
 
     def post(self):
         schema = models.User.get_schema()
-        new_user_id = None
+        location = url_for('.' + self.endpoint) + '%d'
 
         try:
             data = schema(request.json)
             with session_scope(self.db) as session:
                 new_user = models.User(**data)
                 session.add(new_user)
+            location = location % new_user.id
         except IntegrityError, e:
             raise BadRequest(str(e))
         except MultipleInvalid, e:
             raise BadRequest(str(e))
 
-        return Created('User added')
+        return Created('User created', location)
 
     def delete(self, user_id):
         try:
