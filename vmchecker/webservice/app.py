@@ -1,13 +1,12 @@
 # -*- coding: utf-8 -*-
 
-from __future__ import with_statement
+from flask import Flask, Blueprint, jsonify, request
+from endpoints import *
 
 from . import endpoints
 from .api import ApiRequest, ApiResponse
 from .exceptions import BadRequest
 from ..database.util import ApiJSONEncoder
-from flask import Flask, Blueprint, jsonify, request
-from endpoints import *
 
 def check_request():
     mimetype = request.mimetype

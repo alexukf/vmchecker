@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 
-from .database.models import Base
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm.scoping import scoped_session
 from sqlalchemy.pool import StaticPool
 from contextlib import contextmanager
+
+from .database.models import Base
 
 # TODO move this to a configuration file :)
 DATABASE_NAME = 'db.sqlite'
