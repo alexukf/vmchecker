@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 
-from .mixins import ApiResource, ApiResourceMeta
 from datetime import datetime
 from sqlalchemy import Integer, String, DateTime, Float, ForeignKey, Column
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 from voluptuous import Schema
+
+from .mixins import ApiResource, ApiResourceMeta
 
 __all__ = [
     'Assignment', 'Course', 'Holiday', 'Machine', 'VMwareMachine',
@@ -85,7 +86,7 @@ class Machine(Base):
 
 class VMwareMachine(Machine):
     __tablename__ = 'vmwaremachines'
-    __mapper_args__ = {'polymorphic_identity' : 'vmware'}
+    __mapper_args__ = {'polymorphic_identity': 'vmware'}
 
     id = Column(Integer, ForeignKey('machines.id'), primary_key=True)
 
@@ -105,10 +106,11 @@ class Submit(Base):
     __tablename__ = 'submits'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    grade = Column(Float, nullable=True)
     filename = Column(String, nullable=False)
     mimetype = Column(String, nullable=False)
     upload_time = Column(DateTime, nullable=False, default=datetime.utcnow)
+    tester_results = Column(String)
+    grade = Column(Float, nullable=True)
     comments = Column(String, nullable=True)
 
     # foreign keys
@@ -150,6 +152,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     username = Column(String, nullable=False, unique=True)
     password = Column(String, nullable=False)
+    auth_type = Column(String, nullable=False, default='normal')
 
     # back references
     submits = relationship('Submit', backref='user')

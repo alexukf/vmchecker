@@ -2,7 +2,7 @@
 
 from sqlalchemy import Column, String, Integer, DateTime, Float
 from sqlalchemy.ext.declarative import DeclarativeMeta
-from voluptuous import Schema, Coerce, All
+from voluptuous import Schema, Coerce, All, Required
 from datetime import datetime
 
 def Date(fmt = '%Y-%m-%d'):
@@ -12,7 +12,8 @@ map_types = {
     'VARCHAR': unicode,
     'INTEGER': int,
     'DATETIME': Date(),
-    'FLOAT': float
+    'FLOAT': float,
+    'BOOLEAN': bool
     }
 
 class ApiResourceMeta(DeclarativeMeta):
@@ -38,16 +39,20 @@ class ApiResource(object):
         cls.v_schema[key].append(validator)
 
     @classmethod
-    def get_schema(cls):
+    def get_schema(cls, required_keys=[], optional_keys=[]):
         schema = {}
+
+        all_keys = frozenset(required_keys + optional_keys)
         for key, value in cls.v_schema.iteritems():
+            if all_keys and key not in all_keys:
+                continue
+
+            if key in required_keys:
+                key = Required(key)
+
             schema[key] = All(value)
 
         return Schema(schema)
-
-    @classmethod
-    def get_json_keys(cls):
-        return cls.json_keys
 
     def get_json(self):
         json = {}
