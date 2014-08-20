@@ -52,7 +52,7 @@ class Api(MethodView):
         app.add_url_rule("%s/" % cls.prefix,
                 view_func = func, methods=["POST"])
         app.add_url_rule("%s/<%s:%s>" % (cls.prefix, cls.pk["type"], cls.pk["name"]),
-                view_func = func, methods=["GET", "PUT", "DELETE", "PATCH"])
+                view_func = func, methods=["GET", "DELETE", "PATCH"])
 
     @classmethod
     def get_endpoints(cls):
