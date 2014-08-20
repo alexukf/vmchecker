@@ -4,8 +4,9 @@ import ldap
 import bcrypt
 from functools import wraps
 from flask import g
-from werkzeug.exceptions import Unauthorized, Forbidden
+
 from .. import backend
+from .exceptions import *
 from ..backend import session_scope
 
 def check_ldap_auth(username, password):
@@ -16,7 +17,7 @@ def check_ldap_auth(username, password):
     ldap_cfg = LdapConfig()
     con = ldap.initialize(ldap_cfg.server())
     con.simple_bind_s(ldap_cfg.bind_user(),
-                        ldap_cfg.bind_pass())
+                      ldap_cfg.bind_pass())
 
     baseDN = ldap_cfg.root_search()
     searchScope = ldap.SCOPE_SUBTREE
@@ -30,9 +31,9 @@ def check_ldap_auth(username, password):
 
     # find the user's dn
     result_id = con.search(baseDN,
-                        searchScope,
-                        searchFilter,
-                        retrieveAttributes)
+                           searchScope,
+                           searchFilter,
+                           retrieveAttributes)
     result_set = []
     while 1:
         result_type, result_data = con.result(result_id, timeout)
@@ -62,8 +63,7 @@ def check_ldap_auth(username, password):
 
     return True
 
-alternative_auths = [ check_ldap_auth ]
-
+alternative_auths = {'ldap': check_ldap_auth}
 def check_auth(username, password):
     user = None
     with session_scope(backend.get_db()) as session:
@@ -77,13 +77,15 @@ def check_auth(username, password):
             pass
 
         # try other auth methods
-        for auth in alternative_auths:
+        for type, auth in alternative_auths.iteritems():
             if auth(username, password):
                 if user is not None:
                     user.password = bcrypt.hashpw(password, bcrypt.gensalt())
+                    user.auth_type = type
                 else:
-                    user = User(username = username, \
-                                password = bcrypt.hashpw(password, bcrypt.gensalt()))
+                    user = User(username=username,
+                                password=bcrypt.hashpw(password, bcrypt.gensalt()),
+                                auth_type=type)
                     session.add(user)
 
     return user

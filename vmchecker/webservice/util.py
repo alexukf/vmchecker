@@ -6,12 +6,6 @@ import magic
 from flask import g, jsonify
 from datetime import datetime
 
-def make_json_response(message, status_code, headers=None):
-    response = jsonify(message)
-    response.status_code = status_code
-    response.headers = headers
-    return response
-
 def MimeType(mimetypes = []):
     def validate(f):
         m = magic.open(magic.MAGIC_MIME_TYPE)
