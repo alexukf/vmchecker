@@ -1,11 +1,13 @@
 # -*- coding: utf-8 -*-
 
+import bcrypt
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm.scoping import scoped_session
 from sqlalchemy.pool import StaticPool
 from contextlib import contextmanager
 
+from .database import models
 from .database.models import Base
 
 # TODO move this to a configuration file :)
@@ -55,6 +57,14 @@ class SQLiteDb(Database):
 
     def initialize_db(self):
         Base.metadata.create_all(self.engine)
+
+        # add the initial user
+        with session_scope(self) as session:
+            result = session.query(models.User).filter_by(username='admin')
+            if not result.first():
+                admin = models.User(username='admin',
+                                    password=bcrypt.hashpw('123456', bcrypt.gensalt()))
+                session.add(admin)
 
     def create_session(self):
         return self.Session()
