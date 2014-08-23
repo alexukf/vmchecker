@@ -3,8 +3,10 @@
 import ldap
 import bcrypt
 from functools import wraps
-from flask import g
+from flask import g, request
+from sqlalchemy.orm.exc import NoResultFound
 
+from ..database import models
 from .. import backend
 from .exceptions import *
 from ..backend import session_scope
@@ -63,16 +65,21 @@ def check_ldap_auth(username, password):
 
     return True
 
-alternative_auths = {'ldap': check_ldap_auth}
+#alternative_auths = {'ldap': check_ldap_auth}
+alternative_auths = {}
 def check_auth(username, password):
     user = None
     with session_scope(backend.get_db()) as session:
         try:
-            user = session.query(User).filter_by(username = username).one()
+            user = session.query(models.User) \
+                          .filter_by(username = username) \
+                          .one()
 
             # check if hash is the same
-            if bcrypt.hashpw(password, user.password) == user.password:
+            if bcrypt.hashpw(password, user.password.encode('utf-8')) == user.password:
                 return user
+            else:
+                user = None
         except NoResultFound:
             pass
 
@@ -81,11 +88,11 @@ def check_auth(username, password):
             if auth(username, password):
                 if user is not None:
                     user.password = bcrypt.hashpw(password, bcrypt.gensalt())
-                    user.auth_type = type
+                    assert user.auth_type == type
                 else:
-                    user = User(username=username,
-                                password=bcrypt.hashpw(password, bcrypt.gensalt()),
-                                auth_type=type)
+                    user = models.User(username=username,
+                                       password=bcrypt.hashpw(password, bcrypt.gensalt()),
+                                       auth_type=type)
                     session.add(user)
 
     return user

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import bcrypt
 from datetime import datetime
 from flask import request, url_for, g
 from sqlalchemy.exc import IntegrityError
@@ -7,7 +8,7 @@ from sqlalchemy.orm.exc import NoResultFound
 from voluptuous import All, Range, Length, MultipleInvalid, Schema, Required
 
 from .auth import require_basic_auth
-from .util import MimeType, make_json_response
+from .util import MimeType
 from .api import Api, ApiResponse
 from .exceptions import *
 from .responses import *
@@ -41,8 +42,9 @@ class Assignment(Api):
             required_keys=['name', 'deadline', 'statement_url',
                            'upload_active_from', 'upload_active_to',
                            'penalty_weight', 'total_points', 'timeout',
-                           'storage_type', 'course_id'],
-            optional_keys=['machine_id', 'storer_id']
+                           'course_id'],
+            optional_keys=['timedelta', 'storage_type',
+                           'machine_id', 'storer_id']
             )
         location = url_for('.' + self.endpoint) + '%d'
 
@@ -84,8 +86,8 @@ class Assignment(Api):
         schema = models.Assignment.get_schema(
             optional_keys=['name', 'deadline', 'statement_url',
                            'upload_active_from', 'upload_active_to',
-                           'penalty_weight', 'total_points', 'timeout',
-                           'storage_type', 'course_id', 'machine_id',
+                           'timedelta', 'penalty_weight', 'total_points',
+                           'timeout', 'storage_type', 'course_id', 'machine_id',
                            'storer_id']
             )
 
@@ -323,7 +325,8 @@ class User(Api):
         try:
             data = schema(request.json)
             with session_scope(self.db) as session:
-                data['password'] = bcrypt.hashpw(data['password'], bcrypt.gensalt())
+                data['password'] = bcrypt.hashpw(data['password'].encode('utf-8'),
+                                                 bcrypt.gensalt())
                 new_user = models.User(**data)
                 session.add(new_user)
             location = location % new_user.id
@@ -359,7 +362,8 @@ class User(Api):
                 result = session.query(models.User) \
                     .filter_by(id=user_id) \
                     .one()
-                data['password'] = bcrypt.hashpw(data['password'], bcrypt.gensalt())
+                data['password'] = bcrypt.hashpw(data['password'].encode('utf-8'),
+                                                 bcrypt.gensalt())
                 result.update(data)
         except NoResultFound:
             raise NotFound("User %d was not found" % user_id)
