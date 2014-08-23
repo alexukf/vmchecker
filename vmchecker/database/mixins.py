@@ -35,10 +35,6 @@ class ApiResource(object):
             setattr(self, key, value)
 
     @classmethod
-    def add_validator(cls, key, validator):
-        cls.v_schema[key].append(validator)
-
-    @classmethod
     def get_schema(cls, required_keys=[], optional_keys=[]):
         schema = {}
 
@@ -52,7 +48,7 @@ class ApiResource(object):
 
             schema[key] = All(value)
 
-        return Schema(schema)
+        return schema
 
     def get_json(self):
         json = {}
