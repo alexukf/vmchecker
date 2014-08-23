@@ -22,9 +22,9 @@ def MimeType(mimetypes = []):
             os.remove(tmpname)
             raise Invalid("invalid mimetype %s" % mimetype)
 
-        setattr(f, 'tmpname', tmpname)
-        setattr(f, 'mimetype', mimetype)
-
-        return f
+        return {
+            'tmpname': tmpname,
+            'mimetype': mimetype
+            }
 
     return validate

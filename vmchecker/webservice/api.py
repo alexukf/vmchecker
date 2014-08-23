@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-import simplejson as json
+from flask.json import dumps
 from flask.views import MethodView
 from flask.wrappers import Request, Response
 from werkzeug.exceptions import HTTPException
@@ -75,7 +75,7 @@ class ApiResponse(Response):
         if status is None:
             status = self.default_status
 
-        Response.__init__(self, response=json.dumps({
+        Response.__init__(self, response=dumps({
             'result': content,
             'errorCode': error_code
             }), status=status)

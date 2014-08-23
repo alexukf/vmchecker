@@ -8,18 +8,15 @@ from .api import ApiRequest, ApiResponse
 from .exceptions import BadRequest
 from ..database.util import ApiJSONEncoder
 
-def check_request():
-    mimetype = request.mimetype
-    if mimetype.startswith('application/') and mimetype.endswith('json'):
-        return None
+def before_request():
+    """This gets executed before the request is passed to the application"""
 
-    try:
-        if request.get_json(force=True) is not None:
-            return None
-    except:
-        pass
-
-    raise BadRequest('we only accept json')
+    # we force the caching of the JSON because flask will not load the
+    # JSON unless the mimetype is 'application/json'.
+    # XXX If the loading throws an error it will be ignored
+    # and request.json will end up being None
+    request.get_json(force=True, silent=True)
+    return None
 
 def create_webservice():
     app = Flask('vmchecker')
@@ -28,7 +25,7 @@ def create_webservice():
         print 'Registering endpoint %s' % endpoint.__name__
         endpoint.register_api_endpoint(blueprint)
 
-    blueprint.before_request(check_request)
+    blueprint.before_request(before_request)
 
     app.register_blueprint(blueprint)
 

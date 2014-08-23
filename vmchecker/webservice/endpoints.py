@@ -3,6 +3,7 @@
 import bcrypt
 from datetime import datetime
 from flask import request, url_for, g
+from sqlalchemy import desc
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.exc import NoResultFound
 from voluptuous import All, Range, Length, MultipleInvalid, Schema, Required
@@ -34,18 +35,18 @@ class Assignment(Api):
         if assignment_id is not None and not results:
             raise NotFound("Assignment %d was not found" % assignment_id)
 
-        return ApiResponse({'collection': results})
+        return ApiResponse(results)
 
     @require_basic_auth
     def post(self):
-        schema = models.Assignment.get_schema(
+        schema = Schema(models.Assignment.get_schema(
             required_keys=['name', 'deadline', 'statement_url',
                            'upload_active_from', 'upload_active_to',
                            'penalty_weight', 'total_points', 'timeout',
                            'course_id'],
             optional_keys=['timedelta', 'storage_type',
                            'machine_id', 'storer_id']
-            )
+            ))
         location = url_for('.' + self.endpoint) + '%d'
 
         try:
@@ -83,13 +84,13 @@ class Assignment(Api):
 
     @require_basic_auth
     def patch(self, assignment_id):
-        schema = models.Assignment.get_schema(
+        schema = Schema(models.Assignment.get_schema(
             optional_keys=['name', 'deadline', 'statement_url',
                            'upload_active_from', 'upload_active_to',
                            'timedelta', 'penalty_weight', 'total_points',
                            'timeout', 'storage_type', 'course_id', 'machine_id',
                            'storer_id']
-            )
+            ))
 
         try:
             data = schema(request.json)
@@ -126,12 +127,12 @@ class Course(Api):
         if course_id is not None and not results:
             raise NotFound("Course %d was not found" % course_id)
 
-        return ApiResponse({'collection': results})
+        return ApiResponse(results)
 
     @require_basic_auth
     def post(self):
-        schema = models.Course.get_schema(
-                required_keys=['name', 'repository_path', 'root_path'])
+        schema = Schema(models.Course.get_schema(
+                required_keys=['name', 'repository_path', 'root_path']))
         location = url_for('.' + self.endpoint) + '%d'
 
         try:
@@ -164,7 +165,7 @@ class Course(Api):
 
     @require_basic_auth
     def patch(self, course_id):
-        schema = models.Course.get_schema()
+        schema = Schema(models.Course.get_schema())
 
         try:
             data = schema(request.json)
@@ -200,21 +201,24 @@ class Submit(Api):
         if submit_id is not None and not results:
             raise NotFound("Submit %d was not found" % submit_id)
 
-        return ApiResponse({'collection': results})
+        return ApiResponse(results)
 
     @require_basic_auth
     def post(self):
-        schema = models.Submit.get_schema(required_keys=['assignment_id'])
+        request.get_data()
+        schema = Schema(models.Submit.get_schema(
+            required_keys=['assignment_id']
+            ))
         location = url_for('.' + self.endpoint) + '%d'
 
         file_schema = Schema({
-            Required('file'): All(
-                MimeType(['application/zip'])
-                )
+            Required('file'): All(MimeType([
+                'application/zip'
+                ]))
             })
 
         try:
-            data = schema(request.json)
+            data = schema(request.form.to_dict(flat=True))
             files = file_schema(request.files.to_dict(flat=True))
 
             with session_scope(self.db) as session:
@@ -226,7 +230,7 @@ class Submit(Api):
                     raise BadRequest("Assignment %d does not exist" % assignment_id)
 
                 # check if upload is permitted
-                now = datetime.uctnow()
+                now = datetime.utcnow()
                 if (now < result.upload_active_from) or \
                         (now > result.upload_active_to):
                     raise BadRequest("Upload is only permitted between %s and %s" % \
@@ -244,11 +248,13 @@ class Submit(Api):
                         raise BadRequest("Submitted too soon, please wait %f seconds" % remaining_time)
 
                 new_submit = models.Submit(**data)
-                new_submit.filename = files['file'].tmpname
+                new_submit.filename = files['file']['tmpname']
+                new_submit.mimetype = files['file']['mimetype']
+                new_submit.user_id = g.user.id
 
-                submit(new_submit)
+                #submit(new_submit)
 
-                self.session.add(new_submit)
+                session.add(new_submit)
             location = location % new_submit.id
         except IntegrityError, e:
             raise BadRequest(str(e))
@@ -259,8 +265,8 @@ class Submit(Api):
 
     @require_basic_auth
     def patch(self, submit_id):
-        schema = models.submit.get_schema(required_keys=['grade'],
-                optional_keys=['comments'])
+        schema = Schema(models.submit.get_schema(required_keys=['grade'],
+                optional_keys=['comments']))
 
         try:
             data = schema(request.json)
@@ -314,12 +320,12 @@ class User(Api):
         if user_id is not None and not results:
             raise NotFound("User %d was not found" % user_id)
 
-        return ApiResponse({'collection': results})
+        return ApiResponse(results)
 
     @require_basic_auth
     def post(self):
-        schema = models.User.get_schema(
-                required_keys=['username', 'password'])
+        schema = Schema(models.User.get_schema(
+                required_keys=['username', 'password']))
         location = url_for('.' + self.endpoint) + '%d'
 
         try:
@@ -354,7 +360,7 @@ class User(Api):
 
     @require_basic_auth
     def patch(self, user_id):
-        schema = models.User.get_schema(required_keys=['password'])
+        schema = Schema(models.User.get_schema(required_keys=['password']))
 
         try:
             data = schema(request.json)
