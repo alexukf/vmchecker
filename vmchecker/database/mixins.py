@@ -5,7 +5,7 @@ from sqlalchemy.ext.declarative import DeclarativeMeta
 from voluptuous import Schema, Coerce, All, Required
 from datetime import datetime
 
-def Date(fmt = '%Y-%m-%d'):
+def Date(fmt = '%H:%M %d/%m/%Y'):
     return lambda v: datetime.strptime(v, fmt)
 
 map_types = {
