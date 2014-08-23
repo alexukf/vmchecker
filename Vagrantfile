@@ -15,6 +15,8 @@ pip install flask
 pip install sqlalchemy
 pip install voluptuous
 pip install cffi
+pip install requests
+pip install click
 pip install pygit2==0.19.0
 
 apt-get install -y git
