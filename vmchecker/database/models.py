@@ -114,8 +114,8 @@ class Submit(Base):
     comments = Column(String, nullable=True)
 
     # foreign keys
-    user_id = Column(Integer, ForeignKey('users.id'))
-    assignment_id = Column(Integer, ForeignKey('assignments.id'))
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    assignment_id = Column(Integer, ForeignKey('assignments.id'), nullable=False)
 
 
 class Tester(Base):
