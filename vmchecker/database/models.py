@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 
 from datetime import datetime
-from sqlalchemy import Integer, String, DateTime, Float, ForeignKey, Column
+from sqlalchemy import (
+        Integer, String, DateTime, Float, ForeignKey, Column,
+        Boolean)
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 from voluptuous import Schema
@@ -67,22 +69,22 @@ class Machine(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     hostname = Column(String, nullable=False)
     vmx_path = Column(String, nullable=False)
-    guest_user = Column(String, nullable=False)
-    guest_password = Column(String, nullable=False)
-    guest_base_path = Column(String, nullable=False)
-    guest_shell_path = Column(String, nullable=False)
-    guest_home_in_shell = Column(String, nullable=False)
-    guest_build_script = Column(String)
-    guest_run_script = Column(String)
+    user = Column(String, nullable=False)
+    password = Column(String, nullable=False)
+    base_path = Column(String, nullable=False)
+    shell_path = Column(String, nullable=False)
+    home_in_shell = Column(String, nullable=False)
+    build_script = Column(String)
+    run_script = Column(String)
 
     # foreign keys
-    tester_id = Column(Integer, ForeignKey('testers.id'))
+    tester_id = Column(Integer, ForeignKey('testers.id'), nullable=False)
 
     # back references
     assignments = relationship(Assignment, backref='machine')
 
-    discriminator = Column('type', String, nullable=False, default='vmware')
-    __mapper_args__ = {'polymorphic_on' : discriminator}
+    type = Column('type', String, nullable=False, default='vmware')
+    __mapper_args__ = {'polymorphic_on': type}
 
 class VMwareMachine(Machine):
     __tablename__ = 'vmwaremachines'
@@ -108,7 +110,7 @@ class Submit(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     filename = Column(String, nullable=False)
     mimetype = Column(String, nullable=False)
-    upload_time = Column(DateTime, nullable=False, default=datetime.utcnow)
+    upload_time = Column(DateTime, nullable=False, default=datetime.utcnow())
     tester_results = Column(String)
     grade = Column(Float, nullable=True)
     comments = Column(String, nullable=True)
@@ -122,26 +124,25 @@ class Tester(Base):
     __tablename__ = 'testers'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    login_username = Column(String, nullable=False)
     hostname = Column(String, nullable=False)
     queue_path = Column(String, nullable=False)
 
     # back references
     machines = relationship('Machine', backref='tester')
 
-    discriminator = Column('type', String)
-    __mapper_args__ = {'polymorphic_on' : discriminator}
+    type = Column('type', String, nullable=False, default='vmwareserver')
+    __mapper_args__ = {'polymorphic_on' : type}
 
 class VMwareTester(Tester):
     __tablename__ = 'vmwaretesters'
     __mapper_args__ = {'polymorphic_identity' : 'vmwareserver'}
 
     id = Column(Integer, ForeignKey('testers.id'), primary_key=True)
-    type = Column(Integer, nullable=False)
     url = Column(String, nullable=False)
-    port = Column(String, nullable=False)
+    port = Column(Integer, nullable=False)
     username = Column(String, nullable=False)
     password = Column(String, nullable=False)
+    use_datastore = Column(Boolean, nullable=False)
     datastore_name = Column(String, nullable=False)
     datastore_path = Column(String, nullable=False)
 

@@ -19,12 +19,12 @@ map_types = {
 class ApiResourceMeta(DeclarativeMeta):
     """ Metaclass that is used to """
     def __init__(cls, name, bases, dct):
-        cls.v_schema = {}
+        cls.schema = {}
         cls.json_keys = []
 
         for key, value in cls.__dict__.iteritems():
             if isinstance(value, Column):
-                cls.v_schema[key] = Coerce(map_types[str(value.type)])
+                cls.schema[key] = Coerce(map_types[str(value.type)])
                 cls.json_keys.append(key)
 
         super(ApiResourceMeta, cls).__init__(name, bases, dct)
@@ -35,19 +35,17 @@ class ApiResource(object):
             setattr(self, key, value)
 
     @classmethod
-    def get_schema(cls, required_keys=[], optional_keys=[]):
+    def get_schema(cls, keys=None, required=True):
+        if keys is None:
+            keys = cls.json_keys
+
         schema = {}
-
-        all_keys = frozenset(required_keys + optional_keys)
-        for key, value in cls.v_schema.iteritems():
-            if all_keys and key not in all_keys:
+        for key, value in cls.schema.iteritems():
+            if key not in keys:
                 continue
-
-            if key in required_keys:
-                key = Required(key)
-
-            schema[key] = All(value)
-
+            if required:
+               key = Required(key)
+            schema[key] = value
         return schema
 
     def get_json(self):
