@@ -22,15 +22,19 @@ class Assignment(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String, nullable=False, unique=True)
+    display_name = Column(String, nullable=False, unique=True)
     deadline = Column(DateTime, nullable=False)
     statement_url = Column(String, nullable=False)
     upload_active_from = Column(DateTime, nullable=False)
     upload_active_to = Column(DateTime, nullable=False)
     timedelta = Column(Float, nullable=False, default=180.0)
     penalty_weight = Column(Float, nullable=False)
+    penalty_limit = Column(Float, nullable=False)
     total_points = Column(Float, nullable=False)
     timeout = Column(Float, nullable=False)
     storage_type = Column(String, nullable=False, default='normal')
+    revert_to_snapshot = Column(Boolean, nullable=False, default=False)
+    created_on = Column(DateTime, nullable=False, default=datetime.utcnow())
 
     # foreign keys
     course_id = Column(Integer, ForeignKey('courses.id'), nullable=False)
@@ -99,9 +103,6 @@ class Storer(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     username = Column(String, nullable=False)
     hostname = Column(String, nullable=False)
-    results_dest = Column(String, nullable=False)
-    sshid = Column(String, nullable=False)
-    known_hosts_file = Column(String, nullable=False)
 
 
 class Submit(Base):

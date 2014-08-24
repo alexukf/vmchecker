@@ -28,9 +28,9 @@ class Api(MethodView):
     Using this method will create a resource with the following properties:
         - it will be available at api/version/prefix/
         - it will accept the HTTP methods GET and POST
-        for the api/version/prefix/ URL
+        for the api/endpoint/ URL
         - it will accept the HTTP methods GET, PUT, POST, DELETE and PATCH
-        for the api/version/prefix/primary_key_type (the primary key type
+        for the api/endpoint/primary_key_type (the primary key type
         is defined by the pk["type"] entry
     2. If you choose not to use the above method, you must redefine the
     register_api_endpoint class method. Doing so will allow you to register

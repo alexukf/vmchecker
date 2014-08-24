@@ -43,9 +43,9 @@ class Assignment(Api):
     def post(self):
         location = url_for('.' + self.endpoint) + '%d'
         schema = models.Assignment.get_schema(keys=[
-            'name', 'deadline', 'statement_url',
+            'name', 'display_name', 'deadline', 'statement_url',
             'upload_active_from', 'upload_active_to',
-            'penalty_weight', 'total_points', 'timeout',
+            'penalty_weight', 'penalty_limit', 'total_points', 'timeout',
             'course_id'])
         schema.update(models.Assignment.get_schema(keys=[
             'timedelta', 'storage_type', 'machine_id', 'storer_id'],
@@ -88,9 +88,9 @@ class Assignment(Api):
     @require_basic_auth
     def patch(self, assignment_id):
         schema = Schema(models.Assignment.get_schema(keys=[
-            'name', 'deadline', 'statement_url',
+            'name', 'display_name', 'deadline', 'statement_url',
             'upload_active_from', 'upload_active_to',
-            'timedelta', 'penalty_weight', 'total_points',
+            'timedelta', 'penalty_weight', 'penalty_limit', 'total_points',
             'timeout', 'storage_type', 'course_id', 'machine_id',
             'storer_id'], required=False))
 
@@ -271,8 +271,8 @@ class Submit(Api):
 
     @require_basic_auth
     def patch(self, submit_id):
-        schema = models.Submit.get_schema(keys=['grade'])
-        schema.update(models.Submit.get_schema(keys=['comments'], required=False))
+        schema = models.Submit.get_schema(
+            keys=['grade', 'comments'], required=False)
         schema = Schema(schema)
 
         try:
@@ -616,5 +616,154 @@ class Tester(Api):
 
         return Updated("Tester %d was updated" % tester_id)
 
-apis = [Assignment, Course, Submit, User, Machine, Tester]
+class Holiday(Api):
+    endpoint = 'holiday_api'
+    prefix = '/holidays'
+    pk = {'name': 'holiday_id', 'type': 'int'}
+
+    def get(self, holiday_id):
+        results = []
+
+        with session_scope(self.db) as session:
+            query = session.query(models.Holiday)
+
+            if holiday_id is not None:
+                query = query.filter_by(id=holiday_id)
+
+            results = map(lambda el: el.get_json(), query.all())
+
+        if holiday_id is not None and not results:
+            raise NotFound("Holiday %d was not found" % holiday_id)
+
+        return ApiResponse(results)
+
+    @require_basic_auth
+    def post(self):
+        location = url_for('.' + self.endpoint) + '%d'
+        schema = Schema(models.Holiday.get_schema(
+            keys=['start', 'end']))
+
+        try:
+            data = schema(request.json)
+            new_holiday = models.Holiday(**data)
+            with session_scope(self.db) as session:
+                session.add(new_holiday)
+            location = location % new_holiday.id
+        except IntegrityError, e:
+            raise BadRequest(str(e))
+        except MultipleInvalid, e:
+            raise BadRequest(str(e))
+
+        return Created('Holiday was created', location)
+
+    @require_basic_auth
+    def delete(self, holiday_id):
+        try:
+            with session_scope(self.db) as session:
+                result = session.query(models.Holiday) \
+                                .filter_by(id=holiday_id) \
+                                .one()
+                session.delete(result)
+        except NoResultFound:
+            raise NotFound("Holiday %d was not found" % holiday_id)
+        except IntegrityError:
+            raise BadRequest(str(e))
+
+        return Deleted('Holiday %d was deleted' % holiday_id)
+
+    @require_basic_auth
+    def patch(self, holiday_id):
+        schema = Schema(models.Holiday.get_schema(
+            keys=['start', 'end'], required=False))
+
+        try:
+            data = schema(request.json)
+            with session_scope(self.db) as session:
+                result = session.query(models.Holiday) \
+                                .filter_by(id=holiday_id) \
+                                .one()
+                result.update(data)
+        except NoResultFound:
+            raise NotFound("Holiday %d was not found" % holiday_id)
+        except IntegrityError, e:
+            raise BadRequest(str(e))
+
+        return Updated("Holiday %d was updated" % holiday_id)
+
+class Storer(Api):
+    endpoint = 'storer_api'
+    prefix = '/storers'
+    pk = {'name': 'storer_id', 'type': 'int'}
+
+    def get(self, storer_id):
+        results = []
+
+        with session_scope(self.db) as session:
+            query = session.query(models.Storer)
+
+            if storer_id is not None:
+                query = query.filter_by(id=storer_id)
+
+            results = map(lambda el: el.get_json(), query.all())
+
+        if storer_id is not None and not results:
+            raise NotFound("Storer %d was not found" % storer_id)
+
+        return ApiResponse(results)
+
+    @require_basic_auth
+    def post(self):
+        location = url_for('.' + self.endpoint) + '%d'
+        schema = Schema(models.Storer.get_schema(
+            keys=['username', 'hostname']))
+
+        try:
+            data = schema(request.json)
+            new_storer = models.Storer(**data)
+            with session_scope(self.db) as session:
+                session.add(new_storer)
+            location = location % new_storer.id
+        except IntegrityError, e:
+            raise BadRequest(str(e))
+        except MultipleInvalid, e:
+            raise BadRequest(str(e))
+
+        return Created('Storer was created', location)
+
+    @require_basic_auth
+    def delete(self, storer_id):
+        try:
+            with session_scope(self.db) as session:
+                result = session.query(models.Storer) \
+                                .filter_by(id=storer_id) \
+                                .one()
+                session.delete(result)
+        except NoResultFound:
+            raise NotFound("Storer %d was not found" % storer_id)
+        except IntegrityError:
+            raise BadRequest(str(e))
+
+        return Deleted('Storer %d was deleted' % storer_id)
+
+    @require_basic_auth
+    def patch(self, storer_id):
+        schema = Schema(models.Storer.get_schema(
+            keys=['username', 'hostname'], required=False))
+
+        try:
+            data = schema(request.json)
+            with session_scope(self.db) as session:
+                result = session.query(models.Storer) \
+                                .filter_by(id=storer_id) \
+                                .one()
+                result.update(data)
+        except NoResultFound:
+            raise NotFound("Storer %d was not found" % storer_id)
+        except IntegrityError, e:
+            raise BadRequest(str(e))
+
+        return Updated("Storer %d was updated" % storer_id)
+
+apis = [Assignment, Course, Submit, User,
+        Machine, Tester, Holiday, Storer]
 __all__ = map(lambda klazz: klazz.__name__, apis)

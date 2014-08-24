@@ -30,8 +30,17 @@ def post(endpoint, payload, files=None):
 
 def patch(endpoint, payload):
     url = "%s/%s" % (api_url, endpoint)
-    response = request.patch(url, data=payload, auth=auth)
-    return response.json()
+    response = requests.patch(url, data=payload, auth=auth)
+    if not response.ok:
+        return response.json()
+    return '%s was updated' % endpoint
+
+def delete(endpoint):
+    url = "%s/%s" % (api_url, endpoint)
+    response = requests.delete(url, auth=auth)
+    if not response.ok:
+        return response.json()
+    return '%s was deleted' % endpoint
 
 class DateParamType(click.ParamType):
     """Date parameter type for click"""
@@ -41,10 +50,15 @@ class DateParamType(click.ParamType):
     # validator in vmchecker.database.mixins
     fmt = '%H:%M %d/%m/%Y'
 
+    def __init__(self, fmt=None):
+        if fmt is not None:
+            self.fmt = fmt
+        click.ParamType.__init__(self)
+
     def convert(self, value, param, ctx):
         try:
             date = datetime.strptime(value, self.fmt)
-            return value
+            return date.strftime(self.__class__.fmt)
         except ValueError, e:
             self.fail(str(e), param, ctx)
 DATE = DateParamType()
@@ -118,6 +132,8 @@ def get_assignment(*args, **kw_args):
 
 @assignment.command(name='add')
 @click.option('--name', type=STRING, default=get_random_string(), required=True)
+@click.option('--display_name', type=STRING, default=get_random_string(),
+             required=True)
 @click.option('--deadline', type=DATE, default=get_random_date(
     datetime.utcnow(), datetime.utcnow() + timedelta(120)), required=True)
 @click.option('--statement_url', type=STRING, default=get_random_string(),
@@ -127,6 +143,7 @@ def get_assignment(*args, **kw_args):
 @click.option('--upload_active_to', type=DATE, default=get_random_date(
     datetime.utcnow(), datetime.utcnow() + timedelta(180)), required=True)
 @click.option('--penalty_weight', type=FLOAT, default=0.5, required=True)
+@click.option('--penalty_limit', type=FLOAT, default=3, required=True)
 @click.option('--total_points', type=FLOAT, default=100.0, required=True)
 @click.option('--timeout', type=FLOAT, default=300.0, required=True)
 @click.option('--course_id', type=INT, required=True)
@@ -149,6 +166,7 @@ def add_assignment(*args, **kw_args):
 @click.option('--upload_active_from', type=DATE)
 @click.option('--upload_active_to', type=DATE)
 @click.option('--penalty_weight', type=FLOAT)
+@click.option('--penalty_limit', type=FLOAT)
 @click.option('--total_points', type=FLOAT)
 @click.option('--timeout', type=FLOAT)
 @click.option('--course_id', type=INT)
@@ -227,6 +245,195 @@ def add_submit(*args, **kw_args):
     del kw_args['file']
     payload = {k: v for k, v in kw_args.iteritems() if v is not None}
     print post(url, payload, files={'file': file})
+
+@submit.command(name='grade')
+@click.option('--id', type=INT, required=True)
+@click.argument('grade', type=FLOAT)
+@click.argument('comments', type=STRING, required=False)
+def grade_submit(*args, **kw_args):
+    """Grade a submitted assignment"""
+    url = 'submits/%d' % kw_args['id']
+    del kw_args['id']
+
+    payload = json.dumps({k: v for k, v in kw_args.iteritems() if v is not None})
+    print patch(url, payload)
+
+@commands.group()
+def machine():
+    """Actions available for machines"""
+    pass
+
+@machine.command(name='get')
+@click.option('--id', type=INT)
+def get_machine(*args, **kw_args):
+    url = 'machines/'
+    if kw_args['id'] is not None:
+        url += str(kw_args['id'])
+
+    print get(url)
+
+@machine.command(name='add')
+@click.option('--hostname', type=STRING, default=get_random_string(), required=True)
+@click.option('--vmx_path', type=STRING, default=get_random_string(), required=True)
+@click.option('--user', type=STRING, default=get_random_string(), required=True)
+@click.option('--password', type=STRING, default=get_random_string(), required=True)
+@click.option('--base_path', type=STRING, default=get_random_string(), required=True)
+@click.option('--shell_path', type=STRING, default=get_random_string(), required=True)
+@click.option('--home_in_shell', type=STRING, default=get_random_string(), required=True)
+@click.option('--build_script', type=STRING)
+@click.option('--run_script', type=STRING)
+@click.option('--type', type=STRING, default='vmware')
+@click.option('--tester_id', type=INT, required=True)
+def add_machine(*args, **kw_args):
+    url = 'machines/'
+    payload = json.dumps({k: v for k, v in kw_args.iteritems() if v is not None})
+    print post(url, payload)
+
+@machine.command(name='edit')
+@click.option('--id', type=INT, required=True)
+@click.option('--hostname', type=STRING)
+@click.option('--vmx_path', type=STRING)
+@click.option('--user', type=STRING)
+@click.option('--password', type=STRING)
+@click.option('--base_path', type=STRING)
+@click.option('--shell_path', type=STRING)
+@click.option('--home_in_shell', type=STRING)
+@click.option('--build_script', type=STRING)
+@click.option('--run_script', type=STRING)
+def edit_machine(*args, **kw_args):
+    url = 'machines/%d' % kw_args['id']
+    del kw_args['id']
+    payload = json.dumps({k: v for k, v in kw_args.iteritems() if v is not None})
+    print patch(url, payload)
+
+@commands.group()
+def tester():
+    """Commands available for testers"""
+    pass
+
+@tester.command(name='get')
+@click.option('--id', type=INT)
+def get_tester(*args, **kw_args):
+    url = 'testers/'
+    if kw_args['id'] is not None:
+        url += str(kw_args['id'])
+    print get(url)
+
+@tester.command(name='add')
+@click.option('--hostname', type=STRING, default=get_random_string(), required=True)
+@click.option('--queue_path', type=STRING, default=get_random_string(), required=True)
+@click.option('--type', type=STRING, default='vmwareserver', required=True)
+@click.option('--url', type=STRING, default=get_random_string(), required=True)
+@click.option('--port', type=INT, default=get_random_number(), required=True)
+@click.option('--username', type=STRING, default=get_random_string(), required=True)
+@click.option('--password', type=STRING, default=get_random_string(), required=True)
+@click.option('--use_datastore', type=BOOL, default=True, required=True)
+@click.option('--datastore_name', type=STRING, default=get_random_string(), required=True)
+@click.option('--datastore_path', type=STRING, default=get_random_string(), required=True)
+def add_tester(*args, **kw_args):
+    url = 'testers/'
+
+    payload = json.dumps({k: v for k, v in kw_args.iteritems() if v is not None})
+    print post(url, payload)
+
+@tester.command(name='edit')
+@click.option('--id', type=INT, required=True)
+@click.option('--hostname', type=STRING, default=get_random_string())
+@click.option('--queue_path', type=STRING, default=get_random_string())
+@click.option('--type', type=STRING, default='vmwareserver')
+@click.option('--url', type=STRING, default=get_random_string())
+@click.option('--port', type=INT, default=get_random_number())
+@click.option('--username', type=STRING, default=get_random_string())
+@click.option('--password', type=STRING, default=get_random_string())
+@click.option('--use_datastore', type=BOOL, default=True)
+@click.option('--datastore_name', type=STRING, default=get_random_string())
+@click.option('--datastore_path', type=STRING, default=get_random_string())
+def edit_tester(*args, **kw_args):
+    url = 'testers/%d' % kw_args['id']
+    del kw_args['id']
+
+    payload = json.dumps({k: v for k, v in kw_args.iteritems() if v is not None})
+    print patch(url, payload)
+
+@tester.command(name='delete')
+@click.option('--id', type=INT, required=True)
+def delete_tester(*args, **kw_args):
+    url = 'testers/%d' % kw_args['id']
+    print delete(url)
+
+@commands.group()
+def holiday():
+    """Commands available for the holidays"""
+    pass
+
+@holiday.command(name='get')
+@click.option('--id', type=INT)
+def get_holiday(*args, **kw_args):
+    url = 'holidays/'
+    if kw_args['id'] is not None:
+        url += str(kw_args['id'])
+    print get(url)
+
+@holiday.command(name='add')
+@click.option('--start', type=DateParamType('%d/%m/%Y'), required=True)
+@click.option('--end', type=DateParamType('%d/%m/%Y'), required=True)
+def add_holiday(*args, **kw_args):
+    url = 'holidays/'
+    payload = json.dumps({k: v for k, v in kw_args.iteritems() if v is not None})
+    print post(url, payload)
+
+@holiday.command(name='edit')
+@click.option('--id', type=INT, required=True)
+@click.option('--start', type=DateParamType('%d/%m/%Y'))
+@click.option('--end', type=DateParamType('%d/%m/%Y'))
+def edit_holiday(*args, **kw_args):
+    url = 'holidays/%d' % kw_args['id']
+    del kw_args['id']
+    payload = json.dumps({k: v for k, v in kw_args.iteritems() if v is not None})
+    print patch(url, payload)
+
+@holiday.command(name='delete')
+@click.option('--id', type=INT, required=True)
+def delete_holiday(*args, **kw_args):
+    url = 'holidays/%d' % kw_args['id']
+    print delete(url)
+
+@commands.group()
+def storer():
+    """Commands available for the storers"""
+    pass
+
+@storer.command(name='get')
+@click.option('--id', type=INT)
+def get_storer(*args, **kw_args):
+    url = 'storers/'
+    if kw_args['id'] is not None:
+        url += str(kw_args['id'])
+    print get(url)
+
+@storer.command(name='add')
+@click.option('--hostname', type=STRING, default=get_random_string(), required=True)
+@click.option('--username', type=STRING, default=get_random_string(), required=True)
+def add_storer(*args, **kw_args):
+    url = 'storers/'
+    payload = json.dumps({k: v for k, v in kw_args.iteritems() if v is not None})
+    print post(url, payload)
+
+@storer.command(name='edit')
+@click.option('--id', type=INT, required=True)
+@click.option('--hostname', type=STRING)
+@click.option('--username', type=STRING)
+def edit_storer(*args, **kw_args):
+    url = 'storers/%d' % kw_args['id']
+    del kw_args['id']
+    payload = json.dumps({k: v for k, v in kw_args.iteritems() if v is not None})
+    print patch(url, payload)
+
+@storer.command(name='delete')
+@click.option('--id', type=INT, required=True)
+def delete_storer(*args, **kw_args):
+    url = 'storers/%d' % kw_args['id']
+    print delete(url)
 
 if __name__ == '__main__':
     commands()

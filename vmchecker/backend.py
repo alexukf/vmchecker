@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import os
 import bcrypt
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -11,7 +12,7 @@ from .database import models
 from .database.models import Base
 
 # TODO move this to a configuration file :)
-DATABASE_NAME = 'db.sqlite'
+DATABASE_NAME = os.path.join(os.environ['HOME'], 'db.sqlite')
 
 class Database(object):
     def __init__(self, dbname=None):
