@@ -5,9 +5,11 @@ from datetime import datetime
 from flask import request, url_for, g
 from sqlalchemy import desc
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import with_polymorphic
 from sqlalchemy.orm.exc import NoResultFound
 from voluptuous import All, Range, Length, MultipleInvalid, Schema, Required
 
+from .. import submit
 from .auth import require_basic_auth
 from .util import MimeType
 from .api import Api, ApiResponse
@@ -39,15 +41,16 @@ class Assignment(Api):
 
     @require_basic_auth
     def post(self):
-        schema = Schema(models.Assignment.get_schema(
-            required_keys=['name', 'deadline', 'statement_url',
-                           'upload_active_from', 'upload_active_to',
-                           'penalty_weight', 'total_points', 'timeout',
-                           'course_id'],
-            optional_keys=['timedelta', 'storage_type',
-                           'machine_id', 'storer_id']
-            ))
         location = url_for('.' + self.endpoint) + '%d'
+        schema = models.Assignment.get_schema(keys=[
+            'name', 'deadline', 'statement_url',
+            'upload_active_from', 'upload_active_to',
+            'penalty_weight', 'total_points', 'timeout',
+            'course_id'])
+        schema.update(models.Assignment.get_schema(keys=[
+            'timedelta', 'storage_type', 'machine_id', 'storer_id'],
+            required=False))
+        schema = Schema(schema)
 
         try:
             data = schema(request.json)
@@ -84,21 +87,20 @@ class Assignment(Api):
 
     @require_basic_auth
     def patch(self, assignment_id):
-        schema = Schema(models.Assignment.get_schema(
-            optional_keys=['name', 'deadline', 'statement_url',
-                           'upload_active_from', 'upload_active_to',
-                           'timedelta', 'penalty_weight', 'total_points',
-                           'timeout', 'storage_type', 'course_id', 'machine_id',
-                           'storer_id']
-            ))
+        schema = Schema(models.Assignment.get_schema(keys=[
+            'name', 'deadline', 'statement_url',
+            'upload_active_from', 'upload_active_to',
+            'timedelta', 'penalty_weight', 'total_points',
+            'timeout', 'storage_type', 'course_id', 'machine_id',
+            'storer_id'], required=False))
 
         try:
             data = schema(request.json)
             with session_scope(self.db) as session:
                 result = session.query(models.Assignment) \
-                        .filter_by(id=assignment_id) \
-                        .one()
-                result.update(**data)
+                                .filter_by(id=assignment_id) \
+                                .one()
+                result.update(data)
         except NoResultFound:
             raise NotFound("Assignment %d was not found" % assignment_id)
         except IntegrityError, e:
@@ -131,9 +133,9 @@ class Course(Api):
 
     @require_basic_auth
     def post(self):
-        schema = Schema(models.Course.get_schema(
-                required_keys=['name', 'repository_path', 'root_path']))
         location = url_for('.' + self.endpoint) + '%d'
+        schema = Schema(models.Course.get_schema(keys=[
+            'name', 'repository_path', 'root_path']))
 
         try:
             data = schema(request.json)
@@ -153,8 +155,8 @@ class Course(Api):
         try:
             with session_scope(self.db) as session:
                 result = session.query(models.Course) \
-                        .filter_by(id=course_id) \
-                        .one()
+                                .filter_by(id=course_id) \
+                                .one()
                 session.delete(result)
         except NoResultFound:
             raise NotFound("Course %d was not found" % assignment_id)
@@ -165,14 +167,14 @@ class Course(Api):
 
     @require_basic_auth
     def patch(self, course_id):
-        schema = Schema(models.Course.get_schema())
+        schema = Schema(models.Course.get_schema(required=False))
 
         try:
             data = schema(request.json)
-            with session_scope(db) as session:
+            with session_scope(self.db) as session:
                 result = session.query(models.Course) \
-                        .filter_by(id=course_id) \
-                        .one()
+                                .filter_by(id=course_id) \
+                                .one()
                 result.update(data)
         except NoResultFound:
             raise NotFound("Course %d was not found" % assignment_id)
@@ -205,11 +207,8 @@ class Submit(Api):
 
     @require_basic_auth
     def post(self):
-        request.get_data()
-        schema = Schema(models.Submit.get_schema(
-            required_keys=['assignment_id']
-            ))
         location = url_for('.' + self.endpoint) + '%d'
+        schema = Schema(models.Submit.get_schema(keys=['assignment_id']))
 
         file_schema = Schema({
             Required('file'): All(MimeType([
@@ -218,11 +217,13 @@ class Submit(Api):
             })
 
         try:
+            # we can't piggy back JSON because we're using multipart/form-data
+            # for the file upload so we use multipart/form-data for
+            # passing the assignment_id as well
             data = schema(request.form.to_dict(flat=True))
             files = file_schema(request.files.to_dict(flat=True))
 
             with session_scope(self.db) as session:
-                # check if assignment exists
                 result = session.query(models.Assignment) \
                                 .filter_by(id=data['assignment_id']) \
                                 .first()
@@ -251,8 +252,11 @@ class Submit(Api):
                 new_submit.filename = files['file']['tmpname']
                 new_submit.mimetype = files['file']['mimetype']
                 new_submit.user_id = g.user.id
+                new_submit.upload_time = now
 
-                #submit(new_submit)
+                # force sqlalchemy to load the relationships
+                session.enable_relationship_loading(new_submit)
+                submit.submit(new_submit)
 
                 session.add(new_submit)
             location = location % new_submit.id
@@ -260,13 +264,16 @@ class Submit(Api):
             raise BadRequest(str(e))
         except MultipleInvalid, e:
             raise BadRequest(str(e))
+        except ValueError:
+            raise BadRequest('backend failed to submit')
 
         return Created('Submit created', location)
 
     @require_basic_auth
     def patch(self, submit_id):
-        schema = Schema(models.submit.get_schema(required_keys=['grade'],
-                optional_keys=['comments']))
+        schema = models.Submit.get_schema(keys=['grade'])
+        schema.update(models.Submit.get_schema(keys=['comments'], required=False))
+        schema = Schema(schema)
 
         try:
             data = schema(request.json)
@@ -324,9 +331,8 @@ class User(Api):
 
     @require_basic_auth
     def post(self):
-        schema = Schema(models.User.get_schema(
-                required_keys=['username', 'password']))
         location = url_for('.' + self.endpoint) + '%d'
+        schema = Schema(models.User.get_schema(keys=['username', 'password']))
 
         try:
             data = schema(request.json)
@@ -348,8 +354,8 @@ class User(Api):
         try:
             with session_scope(self.db) as session:
                 result = session.query(models.User) \
-                    .filter_by(id=user_id) \
-                    .one()
+                                .filter_by(id=user_id) \
+                                .one()
                 session.delete(result)
         except NoResultFound:
             raise NotFound("User %d was not found" % user_id)
@@ -360,14 +366,14 @@ class User(Api):
 
     @require_basic_auth
     def patch(self, user_id):
-        schema = Schema(models.User.get_schema(required_keys=['password']))
+        schema = Schema(models.User.get_schema(keys=['password'], required=False))
 
         try:
             data = schema(request.json)
             with session_scope(self.db) as session:
                 result = session.query(models.User) \
-                    .filter_by(id=user_id) \
-                    .one()
+                                .filter_by(id=user_id) \
+                                .one()
                 data['password'] = bcrypt.hashpw(data['password'].encode('utf-8'),
                                                  bcrypt.gensalt())
                 result.update(data)
@@ -378,5 +384,237 @@ class User(Api):
 
         return Updated("User %d was updated" % user_id)
 
-apis = [Assignment, Course, Submit, User]
+class Machine(Api):
+    endpoint = 'machine_api'
+    prefix = '/machines'
+    pk = {'name': 'machine_id', 'type': 'int'}
+
+    machine_cfg = {
+        'vmware': {
+            'class': models.VMwareMachine,
+            'required_keys': [],
+            'optional_keys': []
+            }
+        }
+    required_keys = ['hostname', 'vmx_path', 'user', 'password',
+        'base_path', 'shell_path', 'home_in_shell',
+        'tester_id', 'type']
+    optional_keys = ['build_script', 'run_script']
+
+    @require_basic_auth
+    def get(self, machine_id):
+        results = []
+
+        derived_classes = [v['class'] for v in self.machine_cfg.itervalues()]
+
+        with session_scope(self.db) as session:
+            query = session.query(with_polymorphic(models.Machine, derived_classes))
+
+            if machine_id is not None:
+                query = query.filter_by(id=machine_id)
+
+            results = map(lambda el: el.get_json(), query.all())
+
+        if machine_id is not None and not results:
+            raise NotFound("Machine %d was not found" % machine_id)
+
+        return ApiResponse(results)
+
+    @require_basic_auth
+    def post(self):
+        location = url_for('.' + self.endpoint) + '%d'
+
+        if 'type' not in request.json:
+            raise BadRequest('type column is required')
+        type = request.json['type']
+
+        machine_cfg = self.machine_cfg[type]
+        clazz = machine_cfg['class']
+        schema = models.Machine.get_schema(keys=self.required_keys)
+        schema.update(models.Machine.get_schema(
+            keys=self.optional_keys, required=False))
+        schema.update(clazz.get_schema(keys=machine_cfg['required_keys']))
+        schema.update(clazz.get_schema(
+            keys=machine_cfg['optional_keys'], required=False))
+        schema = Schema(schema)
+
+        try:
+            data = schema(request.json)
+            with session_scope(self.db) as session:
+                new_machine = clazz(**data)
+                session.add(new_machine)
+            location = location % new_machine.id
+        except IntegrityError, e:
+            raise BadRequest(str(e))
+        except MultipleInvalid, e:
+            raise BadRequest(str(e))
+
+        return Created('Machine created', location)
+
+    @require_basic_auth
+    def delete(self, machine_id):
+        try:
+            with session_scope(self.db) as session:
+                result = session.query(models.Machine) \
+                                .filter_by(id=machine_id) \
+                                .one()
+                session.delete(result)
+        except NoResultFound:
+            raise NotFound("Machine %d was not found" % machine_id)
+        except IntegrityError, e:
+            raise BadRequest(str(e))
+
+        return Deleted("Machine %d was deleted" % machine_id)
+
+    @require_basic_auth
+    def patch(self, machine_id):
+        if 'type' not in request.json:
+            raise BadRequest('type column is required')
+        type = request.json['type']
+
+        machine_cfg = self.machine_cfg[type]
+        clazz = machine_cfg['class']
+        schema = models.Machine.get_schema(
+                keys=self.required_keys, required=False)
+        schema.update(models.Machine.get_schema(
+            keys=self.optional_keys, required=False))
+        schema.update(clazz.get_schema(
+            keys=machine_cfg['required_keys'], required=False))
+        schema.update(clazz.get_schema(
+            keys=machine_cfg['optional_keys'], required=False))
+        schema = Schema(schema)
+
+        derived_classes = [v['class'] for v in self.machine_cfg.itervalues()]
+
+        try:
+            data = schema(request.json)
+            with session_scope(self.db) as session:
+                result = session.query(with_polymorphic(models.Machine, derived_classes)) \
+                                .filter_by(id=machine_id) \
+                                .one()
+                result.update(data)
+        except NoResultFound:
+            raise NotFound("Machine %d was not found" % machine_id)
+        except IntegrityError, e:
+            raise BadRequest(str(e))
+
+        return Updated("Machine %d was updated" % machine_id)
+
+class Tester(Api):
+    endpoint = 'tester_api'
+    prefix = '/testers'
+    pk = {'name': 'tester_id', 'type': 'int'}
+
+    tester_cfg = {
+        'vmwareserver': {
+            'class': models.VMwareTester,
+            'required_keys': ['url', 'port', 'username', 'password',
+                              'use_datastore', 'datastore_name',
+                              'datastore_path'],
+            'optional_keys': []
+            }
+        }
+    required_keys = ['login_username', 'hostname', 'queue_path', 'type']
+    optional_keys = []
+
+    @require_basic_auth
+    def get(self, tester_id):
+        results = []
+
+        derived_classes = [v['class'] for v in self.tester_cfg.itervalues()]
+
+        with session_scope(self.db) as session:
+            query = session.query(with_polymorphic(models.Tester, derived_classes))
+
+            if tester_id is not None:
+                query = query.filter_by(id=tester_id)
+
+            results = map(lambda el: el.get_json(), query.all())
+
+        if tester_id is not None and not results:
+            raise NotFound("Machine %d was not found" % tester_id)
+
+        return ApiResponse(results)
+
+    @require_basic_auth
+    def post(self):
+        location = url_for('.' + self.endpoint) + '%d'
+
+        if 'type' not in request.json:
+            raise BadRequest('type column is required')
+        type = request.json['type']
+
+        tester_cfg = self.tester_cfg[type]
+        clazz = tester_cfg['class']
+        schema = models.Tester.get_schema(keys=self.required_keys)
+        schema.update(models.Tester.get_schema(
+            keys=self.optional_keys, required=False))
+        schema.update(clazz.get_schema(keys=tester_cfg['required_keys']))
+        schema.update(clazz.get_schema(
+            keys=tester_cfg['optional_keys'], required=False))
+        schema = Schema(schema)
+
+        try:
+            data = schema(request.json)
+            with session_scope(self.db) as session:
+                new_tester = clazz(**data)
+                session.add(new_tester)
+            location = location % new_tester.id
+        except IntegrityError, e:
+            raise BadRequest(str(e))
+        except MultipleInvalid, e:
+            raise BadRequest(str(e))
+
+        return Created('Tester created', location)
+
+    @require_basic_auth
+    def delete(self, tester_id):
+        try:
+            with session_scope(self.db) as session:
+                result = session.query(models.Tester) \
+                                .filter_by(id=tester_id) \
+                                .one()
+                session.delete(result)
+        except NoResultFound:
+            raise NotFound("Tester %d was not found" % tester_id)
+        except IntegrityError, e:
+            raise BadRequest(str(e))
+
+        return Deleted("Tester %d was deleted" % tester_id)
+
+    @require_basic_auth
+    def patch(self, tester_id):
+        if 'type' not in request.json:
+            raise BadRequest('type column is required')
+        type = request.json['type']
+
+        tester_cfg = self.tester_cfg[type]
+        clazz = tester_cfg['class']
+        schema = models.Tester.get_schema(
+                keys=self.required_keys, required=False)
+        schema.update(models.Tester.get_schema(
+            keys=self.optional_keys, required=False))
+        schema.update(clazz.get_schema(
+            keys=tester_cfg['required_keys'], required=False))
+        schema.update(clazz.get_schema(
+            keys=tester_cfg['optional_keys'], required=False))
+        schema = Schema(schema)
+
+        derived_classes = [v['class'] for v in self.tester_cfg.itervalues()]
+
+        try:
+            data = schema(request.json)
+            with session_scope(self.db) as session:
+                result = session.query(with_polymorphic(models.Tester, derived_classes)) \
+                                .filter_by(id=tester_id) \
+                                .one()
+                result.update(data)
+        except NoResultFound:
+            raise NotFound("Tester %d was not found" % tester_id)
+        except IntegrityError, e:
+            raise BadRequest(str(e))
+
+        return Updated("Tester %d was updated" % tester_id)
+
+apis = [Assignment, Course, Submit, User, Machine, Tester]
 __all__ = map(lambda klazz: klazz.__name__, apis)

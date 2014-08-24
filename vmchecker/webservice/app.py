@@ -33,4 +33,6 @@ def create_webservice():
     app.request_class = ApiRequest
     app.response_class = ApiResponse
 
+    # TODO overwrite the default exceptions with custom ones
+
     return app
