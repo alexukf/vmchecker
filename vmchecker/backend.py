@@ -12,7 +12,7 @@ from .database import models
 from .database.models import Base
 
 # TODO move this to a configuration file :)
-DATABASE_NAME = os.path.join(os.environ['HOME'], 'db.sqlite')
+DATABASE_NAME = '/var/run/vmchecker/db.sqlite'
 
 class Database(object):
     def __init__(self, dbname=None):
@@ -56,7 +56,7 @@ class SQLiteDb(Database):
         session_factory = sessionmaker(bind=self.engine, expire_on_commit=False)
         self.Session = scoped_session(session_factory)
 
-    def initialize_db(self):
+    def initialize(self):
         Base.metadata.create_all(self.engine)
 
         # add the initial user

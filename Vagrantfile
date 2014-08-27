@@ -17,6 +17,8 @@ pip install voluptuous
 pip install cffi
 pip install requests
 pip install click
+pip install bcrypt
+pip install gevent
 pip install pygit2==0.19.0
 
 apt-get install -y git
@@ -38,7 +40,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   config.vm.box_url = VAGRANTFILE_BOX_URL
 
   config.vm.network :forwarded_port, host: 5000, guest: 5000
-  config.vm.network :forwarded_port, host: 8080, guest: 80
+#  config.vm.network :forwarded_port, host: 8080, guest: 80
 
   config.vm.provider "virtualbox" do |vb|
       # Use VBoxManage to customize the VM. For example to change memory:
