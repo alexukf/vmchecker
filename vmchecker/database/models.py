@@ -21,8 +21,8 @@ class Assignment(Base):
     __tablename__ = 'assignments'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(String, nullable=False, unique=True)
-    display_name = Column(String, nullable=False, unique=True)
+    name = Column(String, nullable=False)
+    display_name = Column(String, nullable=False)
     deadline = Column(DateTime, nullable=False)
     statement_url = Column(String, nullable=False)
     upload_active_from = Column(DateTime, nullable=False)

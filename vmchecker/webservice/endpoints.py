@@ -256,7 +256,7 @@ class Submit(Api):
 
                 # force sqlalchemy to load the relationships
                 session.enable_relationship_loading(new_submit)
-                submit.submit(new_submit)
+                #submit.submit(new_submit)
 
                 session.add(new_submit)
             location = location % new_submit.id
