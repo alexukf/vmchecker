@@ -18,6 +18,8 @@ from .responses import *
 from ..backend import session_scope
 from ..database import models
 
+from .callback import mockup_respond
+
 class Assignment(Api):
     endpoint = 'assignment_api'
     prefix = '/assignments'
@@ -141,6 +143,7 @@ class Course(Api):
             data = schema(request.json)
             new_course = models.Course(**data)
             with session_scope(self.db) as session:
+                pass
                 session.add(new_course)
             location = location % new_course.id
         except IntegrityError, e:
@@ -208,7 +211,12 @@ class Submit(Api):
     @require_basic_auth
     def post(self):
         location = url_for('.' + self.endpoint) + '%d'
-        schema = Schema(models.Submit.get_schema(keys=['assignment_id']))
+        schema = models.Submit.get_schema(keys=['assignment_id'])
+        schema.update(models.Submit.get_schema(
+            keys=['callback_url', 'callback_port', 'callback_type',
+                'callback_function', 'callback_data'],
+            required=False))
+        schema = Schema(schema)
 
         file_schema = Schema({
             Required('file'): All(MimeType([
@@ -228,7 +236,7 @@ class Submit(Api):
                                 .filter_by(id=data['assignment_id']) \
                                 .first()
                 if result is None:
-                    raise BadRequest("Assignment %d does not exist" % assignment_id)
+                    raise BadRequest("Assignment %d does not exist" % data['assignment_id'])
 
                 # check if upload is permitted
                 now = datetime.utcnow()
@@ -242,13 +250,15 @@ class Submit(Api):
                                 .filter_by(user_id=g.user.id) \
                                 .order_by(desc(models.Submit.upload_time)) \
                                 .first()
-                if result is not None:
+                if False and result is not None:
                     timedelta = datetime.utcnow() - result.upload_time
                     remaining_time = result.assignment.timedelta - timedelta.total_seconds()
                     if (remaining_time > 0):
                         raise BadRequest("Submitted too soon, please wait %f seconds" % remaining_time)
 
                 new_submit = models.Submit(**data)
+
+
                 new_submit.filename = files['file']['tmpname']
                 new_submit.mimetype = files['file']['mimetype']
                 new_submit.user_id = g.user.id
@@ -257,6 +267,11 @@ class Submit(Api):
                 # force sqlalchemy to load the relationships
                 session.enable_relationship_loading(new_submit)
                 #submit.submit(new_submit)
+
+                if 'callback_url' in data:
+                    new_submit.callback_host = request.remote_addr
+                    new_submit.asynchronous = True
+                    mockup_respond(new_submit)
 
                 session.add(new_submit)
             location = location % new_submit.id

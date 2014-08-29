@@ -115,6 +115,11 @@ class Submit(Base):
     tester_results = Column(String)
     grade = Column(Float, nullable=True)
     comments = Column(String, nullable=True)
+    asynchronous = Column(Boolean, nullable=False, default=False)
+    callback_url = Column(String)
+    callback_type = Column(String)
+    callback_function = Column(String)
+    callback_data = Column(String)
 
     # foreign keys
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
