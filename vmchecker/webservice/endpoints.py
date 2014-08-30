@@ -9,6 +9,7 @@ from sqlalchemy.orm import with_polymorphic
 from sqlalchemy.orm.exc import NoResultFound
 from voluptuous import All, Range, Length, MultipleInvalid, Schema, Required
 
+from . import callback
 from .. import submit
 from .auth import require_basic_auth
 from .util import MimeType
@@ -18,7 +19,6 @@ from .responses import *
 from ..backend import session_scope
 from ..database import models
 
-from .callback import mockup_respond
 
 class Assignment(Api):
     endpoint = 'assignment_api'
@@ -213,8 +213,8 @@ class Submit(Api):
         location = url_for('.' + self.endpoint) + '%d'
         schema = models.Submit.get_schema(keys=['assignment_id'])
         schema.update(models.Submit.get_schema(
-            keys=['callback_url', 'callback_port', 'callback_type',
-                'callback_function', 'callback_data'],
+            keys=['callback_url', 'callback_type',
+                'callback_fn', 'callback_data'],
             required=False))
         schema = Schema(schema)
 
@@ -268,10 +268,11 @@ class Submit(Api):
                 session.enable_relationship_loading(new_submit)
                 #submit.submit(new_submit)
 
-                if 'callback_url' in data:
-                    new_submit.callback_host = request.remote_addr
+                if 'callback_type' in data:
                     new_submit.asynchronous = True
-                    mockup_respond(new_submit)
+
+                    if data['callback_type'] == 'xmlrpc':
+                        callback.mockup_respond_xmlrpc(new_submit)
 
                 session.add(new_submit)
             location = location % new_submit.id
