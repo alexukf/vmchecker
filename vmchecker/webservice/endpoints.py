@@ -258,7 +258,6 @@ class Submit(Api):
 
                 new_submit = models.Submit(**data)
 
-
                 new_submit.filename = files['file']['tmpname']
                 new_submit.mimetype = files['file']['mimetype']
                 new_submit.user_id = g.user.id
@@ -279,8 +278,6 @@ class Submit(Api):
         except IntegrityError, e:
             raise BadRequest(str(e))
         except MultipleInvalid, e:
-            raise BadRequest(str(e))
-        except Exception, e:
             raise BadRequest(str(e))
 
         return Created('Submit created', location)
