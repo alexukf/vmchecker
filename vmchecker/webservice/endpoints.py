@@ -226,8 +226,8 @@ class Submit(Api):
 
         try:
             # we can't piggy back JSON because we're using multipart/form-data
-            # for the file upload so we use multipart/form-data for
-            # passing the assignment_id as well
+            # for the file upload so we use multipart/form-data for this
+            # request
             data = schema(request.form.to_dict(flat=True))
             files = file_schema(request.files.to_dict(flat=True))
 
@@ -280,8 +280,8 @@ class Submit(Api):
             raise BadRequest(str(e))
         except MultipleInvalid, e:
             raise BadRequest(str(e))
-        except ValueError:
-            raise BadRequest('backend failed to submit')
+        except Exception, e:
+            raise BadRequest(str(e))
 
         return Created('Submit created', location)
 

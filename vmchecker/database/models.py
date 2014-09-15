@@ -118,7 +118,7 @@ class Submit(Base):
     asynchronous = Column(Boolean, nullable=False, default=False)
     callback_url = Column(String)
     callback_type = Column(String)
-    callback_function = Column(String)
+    callback_fn = Column(String)
     callback_data = Column(String)
 
     # foreign keys
@@ -160,6 +160,7 @@ class User(Base):
     username = Column(String, nullable=False, unique=True)
     password = Column(String, nullable=False)
     auth_type = Column(String, nullable=False, default='normal')
+    user_type = Column(String, nullable=False, default='normal')
 
     # back references
     submits = relationship('Submit', backref='user')
